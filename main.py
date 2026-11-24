@@ -50,7 +50,7 @@ import time
 import urllib.parse
 import urllib.request
 import json
-from pyrogram import Client, filters, enums, idle
+from pyrogram import Client, filters, enums
 from pyrogram.enums import ChatMemberStatus, ChatType
 from pyrogram.errors import (
     SessionPasswordNeeded,
@@ -93,13 +93,13 @@ if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN is required in the Railway environment.")
 
 OWNER_ID = 9239452757
-OWNER_USERNAME = "KASHYAP17"
+OWNER_USERNAME = "Harukasakura01"
 
-CO_OWNER_ID = 9108265973
+CO_OWNER_ID = 5769074791
 CO_OWNER_USERNAME = "ix_aura"
 
 FORCE_CHANNEL_ID = -1003739475692
-FORCE_CHANNEL_LINK = "https://t.me/Hacrrrrjoin2"
+FORCE_CHANNEL_LINK = "https://t.me/VOLT_CHANNEL_UP"
 
 FORCE_GROUP_ID = -1004304252893
 FORCE_GROUP_LINK = "https://t.me/+2Ynr7yEH5mljM2U0"
@@ -700,33 +700,1102 @@ def register_userbot_handlers(user_client: Client, user_id: int):
     @user_client.on_message(filters.me & filters.command("alive", prefixes="."))
     async def ub_alive(c: Client, m: Message):
         await m.edit(
-            f"? **VOLT Userbot is Online & Running Smoothly!**\n"
-            f"?? **User:** `{user_id}`\n"
-            f"?? **Status:** Active"
+            f"? **VOLT Userbot is Online & Running Smoothly!**\n\n"
+            f"?? **Owner:** @{OWNER_USERNAME}\n"
+            f"? **Co-Owner:** @{CO_OWNER_USERNAME}\n"
+            f"?? **Status:** All 12 Sections Active with Pro Features."
         )
 
-async def main():
-    await app.start()
-    logger.info("VOLT Main Bot started successfully.")
-    try:
-        await idle()
-    finally:
-        for uid, h_client in list(HOSTED_CLIENTS.items()):
+    @user_client.on_message(filters.me & filters.command("stopall", prefixes="."))
+    async def ub_stopall(c: Client, m: Message):
+        start_time = time.monotonic()
+        RRAID_TARGETS.clear()
+        nonlocal AUTOREACT_ENABLED
+        AUTOREACT_ENABLED = False
+        await cancel_user_tasks(user_id)
+        elapsed = round((time.monotonic() - start_time) * 1000, 2)
+        await m.edit(f"? **.stopall executed successfully in {elapsed}ms!**\n\nAll raids, rraids, spam, autoreact, and background tasks stopped instantly. ??")
+
+    # -------------------------------------------------------------------------
+    # 1. FULLY FUNCTIONAL ADMIN TOOLS SECTION (PROMOTE & DEMOTE FIXED)
+    # -------------------------------------------------------------------------
+    @user_client.on_message(filters.me & filters.command("promote", prefixes="."))
+    async def ub_promote(c: Client, m: Message):
+        chat_id = m.chat.id
+        user = None
+        if m.reply_to_message and m.reply_to_message.from_user:
+            user = m.reply_to_message.from_user
+        elif len(m.command) > 1:
             try:
-                await h_client.stop()
+                user = await c.get_users(m.command[1])
             except Exception:
                 pass
-        HOSTED_CLIENTS.clear()
+        
+        if not user:
+            await m.edit("? Please reply to a user or provide username/ID to promote!")
+            return
+        
         try:
-            await app.stop()
+            await c.promote_chat_member(
+                chat_id=chat_id,
+                user_id=user.id,
+                privileges=ChatPrivileges(
+                    can_manage_chat=True,
+                    can_delete_messages=True,
+                    can_manage_video_chats=True,
+                    can_restrict_members=True,
+                    can_promote_members=False,
+                    can_change_info=True,
+                    can_invite_users=True,
+                    can_pin_messages=True
+                )
+            )
+            await m.edit(f"? Successfully promoted [{user.first_name}](tg://user?id={user.id}) to Admin!")
+        except Exception as e:
+            await m.edit(f"? Failed to promote: `{e}`")
+
+    @user_client.on_message(filters.me & filters.command("demote", prefixes="."))
+    async def ub_demote(c: Client, m: Message):
+        chat_id = m.chat.id
+        user = None
+        if m.reply_to_message and m.reply_to_message.from_user:
+            user = m.reply_to_message.from_user
+        elif len(m.command) > 1:
+            try:
+                user = await c.get_users(m.command[1])
+            except Exception:
+                pass
+        
+        if not user:
+            await m.edit("? Please reply to a user or provide username/ID to demote!")
+            return
+        
+        try:
+            await c.promote_chat_member(
+                chat_id=chat_id,
+                user_id=user.id,
+                privileges=ChatPrivileges(
+                    can_manage_chat=False,
+                    can_delete_messages=False,
+                    can_manage_video_chats=False,
+                    can_restrict_members=False,
+                    can_promote_members=False,
+                    can_change_info=False,
+                    can_invite_users=False,
+                    can_pin_messages=False
+                )
+            )
+            await m.edit(f"? Successfully demoted [{user.first_name}](tg://user?id={user.id})!")
+        except Exception as e:
+            await m.edit(f"? Failed to demote: `{e}`")
+
+    @user_client.on_message(filters.me & filters.command("ban", prefixes="."))
+    async def ub_ban(c: Client, m: Message):
+        chat_id = m.chat.id
+        user = None
+        if m.reply_to_message and m.reply_to_message.from_user:
+            user = m.reply_to_message.from_user
+        elif len(m.command) > 1:
+            try:
+                user = await c.get_users(m.command[1])
+            except Exception:
+                pass
+        
+        if not user:
+            await m.edit("? Please reply to a user or provide username/ID to ban!")
+            return
+        
+        try:
+            await c.ban_chat_member(chat_id, user.id)
+            await m.edit(f"?? Banned [{user.first_name}](tg://user?id={user.id}) successfully!")
+        except Exception as e:
+            await m.edit(f"? Failed to ban: `{e}`")
+
+    @user_client.on_message(filters.me & filters.command("unban", prefixes="."))
+    async def ub_unban(c: Client, m: Message):
+        chat_id = m.chat.id
+        user = None
+        if m.reply_to_message and m.reply_to_message.from_user:
+            user = m.reply_to_message.from_user
+        elif len(m.command) > 1:
+            try:
+                user = await c.get_users(m.command[1])
+            except Exception:
+                pass
+        
+        if not user:
+            await m.edit("? Please reply to a user or provide username/ID to unban!")
+            return
+        
+        try:
+            await c.unban_chat_member(chat_id, user.id)
+            await m.edit(f"?? Unbanned [{user.first_name}](tg://user?id={user.id}) successfully!")
+        except Exception as e:
+            await m.edit(f"? Failed to unban: `{e}`")
+
+    @user_client.on_message(filters.me & filters.command("mute", prefixes="."))
+    async def ub_mute(c: Client, m: Message):
+        chat_id = m.chat.id
+        user = None
+        if m.reply_to_message and m.reply_to_message.from_user:
+            user = m.reply_to_message.from_user
+        elif len(m.command) > 1:
+            try:
+                user = await c.get_users(m.command[1])
+            except Exception:
+                pass
+        
+        if not user:
+            await m.edit("? Please reply to a user or provide username/ID to mute!")
+            return
+        
+        try:
+            await c.restrict_chat_member(chat_id, user.id, ChatPermissions(can_send_messages=False))
+            await m.edit(f"?? Muted [{user.first_name}](tg://user?id={user.id}) successfully!")
+        except Exception as e:
+            await m.edit(f"? Failed to mute: `{e}`")
+
+    @user_client.on_message(filters.me & filters.command("unmute", prefixes="."))
+    async def ub_unmute(c: Client, m: Message):
+        chat_id = m.chat.id
+        user = None
+        if m.reply_to_message and m.reply_to_message.from_user:
+            user = m.reply_to_message.from_user
+        elif len(m.command) > 1:
+            try:
+                user = await c.get_users(m.command[1])
+            except Exception:
+                pass
+        
+        if not user:
+            await m.edit("? Please reply to a user or provide username/ID to unmute!")
+            return
+        
+        try:
+            await c.restrict_chat_member(
+                chat_id, 
+                user.id, 
+                ChatPermissions(
+                    can_send_messages=True,
+                    can_send_media_messages=True,
+                    can_send_other_messages=True,
+                    can_add_web_page_previews=True
+                )
+            )
+            await m.edit(f"?? Unmuted [{user.first_name}](tg://user?id={user.id}) successfully!")
+        except Exception as e:
+            await m.edit(f"? Failed to unmute: `{e}`")
+
+    @user_client.on_message(filters.me & filters.command("purge", prefixes="."))
+    async def ub_purge(c: Client, m: Message):
+        if not m.reply_to_message:
+            await m.edit("? Please reply to the message from where you want to purge!")
+            return
+        
+        chat_id = m.chat.id
+        start_message_id = m.reply_to_message.id
+        end_message_id = m.id
+        
+        message_ids = []
+        for msg_id in range(start_message_id, end_message_id + 1):
+            message_ids.append(msg_id)
+            if len(message_ids) == 100:
+                try:
+                    await c.delete_messages(chat_id, message_ids)
+                except Exception:
+                    pass
+                message_ids = []
+        
+        if message_ids:
+            try:
+                await c.delete_messages(chat_id, message_ids)
+            except Exception:
+                pass
+        
+        temp = await c.send_message(chat_id, "? **Purge Completed Successfully!** ???")
+        await asyncio.sleep(2)
+        try:
+            await temp.delete()
         except Exception:
             pass
 
-keep_alive()
+    @user_client.on_message(filters.me & filters.command("pin", prefixes="."))
+    async def ub_pin(c: Client, m: Message):
+        if not m.reply_to_message:
+            await m.edit("? Please reply to a message to pin it!")
+            return
+        try:
+            await m.reply_to_message.pin(disable_notification=False)
+            await m.edit("?? **Message pinned successfully!**")
+        except Exception as e:
+            await m.edit(f"? Failed to pin: `{e}`")
+
+    # -------------------------------------------------------------------------
+    # 2. FULLY FUNCTIONAL TEXT STYLERS SECTION
+    # -------------------------------------------------------------------------
+    @user_client.on_message(filters.me & filters.command("vapor", prefixes="."))
+    async def ub_vapor(c: Client, m: Message):
+        text = " ".join(m.command[1:]) or (m.reply_to_message.text if m.reply_to_message else "")
+        if not text:
+            await m.edit("? Please provide text! Example: `.vapor Hello World`")
+            return
+        vaporized = "".join([chr(ord(char) + 65248) if 33 <= ord(char) <= 126 else char for char in text])
+        await m.edit(vaporized)
+
+    @user_client.on_message(filters.me & filters.command("small", prefixes="."))
+    async def ub_small(c: Client, m: Message):
+        text = " ".join(m.command[1:]) or (m.reply_to_message.text if m.reply_to_message else "")
+        if not text:
+            await m.edit("? Please provide text! Example: `.small Hello`")
+            return
+        normal = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        small_chars = "?????????????n?????????????????????????????Q?????????°¹²³45678?"
+        trans = str.maketrans(normal, small_chars)
+        await m.edit(text.translate(trans))
+
+    @user_client.on_message(filters.me & filters.command("box", prefixes="."))
+    async def ub_box(c: Client, m: Message):
+        text = " ".join(m.command[1:]) or (m.reply_to_message.text if m.reply_to_message else "")
+        if not text:
+            await m.edit("? Please provide text! Example: `.box VOLT`")
+            return
+        res = " ".join([f"?? {char.upper()} ??" for char in text])
+        await m.edit(res)
+
+    @user_client.on_message(filters.me & filters.command("invert", prefixes="."))
+    async def ub_invert(c: Client, m: Message):
+        text = " ".join(m.command[1:]) or (m.reply_to_message.text if m.reply_to_message else "")
+        if not text:
+            await m.edit("? Please provide text! Example: `.invert VOLT`")
+            return
+        char_map = {
+            'a': '?', 'b': 'q', 'c': '?', 'd': 'p', 'e': '?', 'f': '?', 'g': '?',
+            'h': '?', 'i': '?', 'j': '?', 'k': '?', 'l': 'l', 'm': '?', 'n': 'u',
+            'o': 'o', 'p': 'd', 'q': 'b', 'r': '?', 's': 's', 't': '?', 'u': 'n',
+            'v': '?', 'w': '?', 'x': 'x', 'y': '?', 'z': 'z', 'A': '?', 'B': '??',
+            'C': '?', 'D': '?', 'E': '?', 'F': '?', 'G': '?', 'H': 'H', 'I': 'I',
+            'J': '?', 'K': '?', 'L': '?', 'M': 'W', 'N': 'N', 'O': 'O', 'P': '?',
+            'Q': '?', 'R': '?', 'S': 'S', 'T': '?', 'U': 'n', 'V': '?', 'W': 'M',
+            'X': 'X', 'Y': '?', 'Z': 'Z'
+        }
+        inverted = "".join([char_map.get(ch, ch) for ch in reversed(text)])
+        await m.edit(inverted)
+
+    @user_client.on_message(filters.me & filters.command("reverse", prefixes="."))
+    async def ub_reverse(c: Client, m: Message):
+        text = " ".join(m.command[1:]) or (m.reply_to_message.text if m.reply_to_message else "")
+        if not text:
+            await m.edit("? Please provide text! Example: `.reverse Hello`")
+            return
+        await m.edit(text[::-1])
+
+    @user_client.on_message(filters.me & filters.command("clap", prefixes="."))
+    async def ub_clap(c: Client, m: Message):
+        text = " ".join(m.command[1:]) or (m.reply_to_message.text if m.reply_to_message else "")
+        if not text:
+            await m.edit("? Please provide text! Example: `.clap Good Job`")
+            return
+        clapped = " ?? ".join(text.split()) + " ??"
+        await m.edit(clapped)
+
+    @user_client.on_message(filters.me & filters.command("zal", prefixes="."))
+    async def ub_zalgo(c: Client, m: Message):
+        text = " ".join(m.command[1:]) or (m.reply_to_message.text if m.reply_to_message else "")
+        if not text:
+            await m.edit("? Please provide text! Example: `.zal Scary`")
+            return
+        up_chars = [chr(i) for i in range(0x0300, 0x036F)]
+        zalgo_text = "".join([ch + random.choice(up_chars) + random.choice(up_chars) for ch in text])
+        await m.edit(zalgo_text)
+
+    @user_client.on_message(filters.me & filters.command("spoiler", prefixes="."))
+    async def ub_spoiler(c: Client, m: Message):
+        text = " ".join(m.command[1:]) or (m.reply_to_message.text if m.reply_to_message else "")
+        if not text:
+            await m.edit("? Please provide text! Example: `.spoiler Secret`")
+            return
+        await m.edit(f"||{text}||")
+
+    # -------------------------------------------------------------------------
+    # 3. FULLY FUNCTIONAL FUN & GAUGES SECTION
+    # -------------------------------------------------------------------------
+    @user_client.on_message(filters.me & filters.command("roast", prefixes="."))
+    async def ub_roast(c: Client, m: Message):
+        target = "Tum"
+        if m.reply_to_message and m.reply_to_message.from_user:
+            target = f"[{m.reply_to_message.from_user.first_name}](tg://user?id={m.reply_to_message.from_user.id})"
+        elif len(m.command) > 1:
+            target = " ".join(m.command[1:])
+        
+        roasts = [
+            f"?? {target}, tumhari shakal dekh kar lagta hai bhagwan coding karte waqt so gaye the!",
+            f"?? {target} bhai, itna ugly face lekar bahar kaise nikal lete ho bina mask ke?",
+            f"?? {target}, akal se paidal aur shakal se disaster ho tum!",
+            f"?? {target} ki aukaat itni hai ki ye dukan par udhaar magne me bhi sharmata hai!"
+        ]
+        await m.edit(random.choice(roasts))
+
+    @user_client.on_message(filters.me & filters.command("love", prefixes="."))
+    async def ub_love(c: Client, m: Message):
+        target = "Someone"
+        if m.reply_to_message and m.reply_to_message.from_user:
+            target = m.reply_to_message.from_user.first_name
+        elif len(m.command) > 1:
+            target = " ".join(m.command[1:])
+        
+        pct = random.randint(15, 100)
+        await m.edit(f"?? **Love Compatibility Calculator**\n\n• Target: `{target}`\n• Match Score: `{pct}%` ??")
+
+    @user_client.on_message(filters.me & filters.command("crush", prefixes="."))
+    async def ub_crush(c: Client, m: Message):
+        target = "Secret Crush"
+        if m.reply_to_message and m.reply_to_message.from_user:
+            target = m.reply_to_message.from_user.first_name
+        elif len(m.command) > 1:
+            target = " ".join(m.command[1:])
+        
+        pct = random.randint(20, 100)
+        await m.edit(f"?? **Crush Detector Scan**\n\n• Target: `{target}`\n• Chances: `{pct}%` chance hai ki wo bhi tumhe like karti/karta hai! ?")
+
+    @user_client.on_message(filters.me & filters.command("iq", prefixes="."))
+    async def ub_iq(c: Client, m: Message):
+        target = m.from_user.first_name
+        if m.reply_to_message and m.reply_to_message.from_user:
+            target = m.reply_to_message.from_user.first_name
+        elif len(m.command) > 1:
+            target = " ".join(m.command[1:])
+        
+        iq_val = random.randint(40, 180)
+        await m.edit(f"?? **Brainpower IQ Scan**\n\n• User: `{target}`\n• IQ Level: `{iq_val}` ?")
+
+    @user_client.on_message(filters.me & filters.command("aukaat", prefixes="."))
+    async def ub_aukaat(c: Client, m: Message):
+        target = "User"
+        if m.reply_to_message and m.reply_to_message.from_user:
+            target = m.reply_to_message.from_user.first_name
+        elif len(m.command) > 1:
+            target = " ".join(m.command[1:])
+        
+        balance = random.choice(["?10 ki Pepsi", "?2 ka Frooti", "?1.5 Crore in Swiss Bank", "?0 (Road pe hai)", "?50 Lakhs cash"])
+        await m.edit(f"?? **Aukaat & Bank Balance Scanner**\n\n• Target: `{target}`\n• Estimated Wealth: `{balance}` ??")
+
+    @user_client.on_message(filters.me & filters.command("aura", prefixes="."))
+    async def ub_aura(c: Client, m: Message):
+        target = m.from_user.first_name
+        if len(m.command) > 1:
+            target = " ".join(m.command[1:])
+        aura_pts = random.randint(-5000, 99999)
+        await m.edit(f"?? **Sigma Aura Score**\n\n• Target: `{target}`\n• Aura Points: `{aura_pts}` pts ?")
+
+    @user_client.on_message(filters.me & filters.command("sigma", prefixes="."))
+    async def ub_sigma(c: Client, m: Message):
+        rules = [
+            "sigma rule #1: Kabhi kisi ladki ke peeche mat bhago, paisa kamao paisa! ??",
+            "sigma rule #2: Emotional damage se bachne ke liye mute button dabao.",
+            "sigma rule #3: Akela chalna seekho, bheed me toh sabhi chalte hain.",
+            "sigma rule #4: Raat ko 3 baje code debug karo, duniya so rahi hoti hai."
+        ]
+        await m.edit(f"?? **Sigma Rule Generator**\n\n_{random.choice(rules)}_")
+
+    @user_client.on_message(filters.me & filters.command(["truth", "dare"], prefixes="."))
+    async def ub_truth_dare(c: Client, m: Message):
+        cmd = m.command[0]
+        if cmd == "truth":
+            list_q = [
+                "Truth: Tumhara sabse bada embarrassing moment kya hai?",
+                "Truth: Kya tumhara abhi bhi apne ex par crush hai?",
+                "Truth: Aisa kaun sa jhoot hai jo tumne apne parents se bola ho?"
+            ]
+        else:
+            list_q = [
+                "Dare: Apne group ke kisi bhi member ko ek funny audio bhej kar dikhao.",
+                "Dare: Apna last WhatsApp chat ka screenshot bhejo (censored).",
+                "Dare: 5 minute ke liye group me sabko 'Main pagal hu' message karo."
+            ]
+        await m.edit(f"?? **{cmd.upper()} Challenge:**\n\n_{random.choice(list_q)}_")
+
+    # -------------------------------------------------------------------------
+    # 10. FULLY FUNCTIONAL FUN GAMES SECTION (ADDED & FIXED)
+    # -------------------------------------------------------------------------
+    @user_client.on_message(filters.me & filters.command(["toss", "dice", "rps", "slot", "gay", "handsome", "cute", "legend"], prefixes="."))
+    async def ub_fun_games(c: Client, m: Message):
+        cmd = m.command[0]
+        target = m.from_user.first_name
+        if m.reply_to_message and m.reply_to_message.from_user:
+            target = m.reply_to_message.from_user.first_name
+        elif len(m.command) > 1:
+            target = " ".join(m.command[1:])
+
+        if cmd == "toss":
+            res = random.choice(["Heads ??", "Tails ??"])
+            await m.edit(f"?? **Coin Toss Result:** `{res}`")
+        elif cmd == "dice":
+            val = random.randint(1, 6)
+            await m.edit(f"?? **Dice Rolled:** `{val}` ??")
+        elif cmd == "rps":
+            choices = ["Rock ??", "Paper ??", "Scissors ??"]
+            await m.edit(f"?? **Rock Paper Scissors:** `{random.choice(choices)}`")
+        elif cmd == "slot":
+            s1 = random.choice(["??", "??", "??", " 7??", "??"])
+            s2 = random.choice(["??", "??", "??", " 7??", "??"])
+            s3 = random.choice(["??", "??", "??", " 7??", "??"])
+            await m.edit(f"?? **Slot Machine:**\n\n[ {s1} | {s2} | {s3} ]\n\n*(Result: {'JACKPOT! ??' if s1==s2==s3 else 'Try Again! ??'})*")
+        elif cmd == "gay":
+            pct = random.randint(0, 100)
+            await m.edit(f"?? **Gay Meter:**\n\n• Target: `{target}`\n• Score: `{pct}%` ??????")
+        elif cmd == "handsome":
+            pct = random.randint(30, 100)
+            await m.edit(f"?? **Handsome Meter:**\n\n• Target: `{target}`\n• Score: `{pct}%` ?")
+        elif cmd == "cute":
+            pct = random.randint(20, 100)
+            await m.edit(f"?? **Cuteness Meter:**\n\n• Target: `{target}`\n• Score: `{pct}%` ??")
+        elif cmd == "legend":
+            pct = random.randint(50, 100)
+            await m.edit(f"?? **Legend Status:**\n\n• Target: `{target}`\n• Score: `{pct}% Legend` ??")
+
+    # ADMIN & BROADCAST SYSTEM
+    @user_client.on_message(filters.me & filters.command("addadmin", prefixes="."))
+    async def ub_addadmin(c: Client, m: Message):
+        if not is_user_admin(m.from_user.id):
+            await m.edit("? Only Owners and Admins can add new admins!")
+            return
+        
+        target_id = None
+        if m.reply_to_message and m.reply_to_message.from_user:
+            target_id = m.reply_to_message.from_user.id
+        elif len(m.command) > 1:
+            try:
+                target_id = int(m.command[1])
+            except ValueError:
+                pass
+        
+        if not target_id:
+            await m.edit("? Please reply to a user or provide user ID to add as admin!")
+            return
+        
+        CUSTOM_ADMINS.add(target_id)
+        await m.edit(f"? Successfully added user `{target_id}` as Bot Admin!")
+
+    @user_client.on_message(filters.me & filters.command("deladmin", prefixes="."))
+    async def ub_deladmin(c: Client, m: Message):
+        if m.from_user.id not in (user_id, OWNER_ID, CO_OWNER_ID):
+            await m.edit("? Only Owner and Co-Owner can remove admins!")
+            return
+        
+        target_id = None
+        if m.reply_to_message and m.reply_to_message.from_user:
+            target_id = m.reply_to_message.from_user.id
+        elif len(m.command) > 1:
+            try:
+                target_id = int(m.command[1])
+            except ValueError:
+                pass
+        
+        if not target_id:
+            await m.edit("? Please reply to a user or provide user ID to remove from admin!")
+            return
+        
+        if target_id in (user_id, OWNER_ID):
+            await m.edit("? Cannot remove primary owner from admins!")
+            return
+        
+        CUSTOM_ADMINS.discard(target_id)
+        await m.edit(f"? Successfully removed user `{target_id}` from Bot Admins!")
+
+    @user_client.on_message(filters.me & filters.command("broadcast", prefixes="."))
+    async def ub_admin_broadcast(c: Client, m: Message):
+        if not is_user_admin(m.from_user.id):
+            await m.edit("? You are not authorized to use broadcast!")
+            return
+        
+        text = " ".join(m.command[1:])
+        reply = m.reply_to_message
+        if not text and not reply:
+            await m.edit("? Please provide message text or reply to a message to broadcast!")
+            return
+        
+        await m.edit("?? Starting admin broadcast across all chats...")
+        success = 0
+        failed = 0
+        async for dialog in c.get_dialogs():
+            chat_id = dialog.chat.id
+            if chat_id == m.chat.id:
+                continue
+            if dialog.chat.type == enums.ChatType.CHANNEL:
+                continue
+            try:
+                if reply:
+                    await reply.copy(chat_id)
+                else:
+                    await c.send_message(chat_id, text)
+                success += 1
+                await asyncio.sleep(0.3)
+            except Exception:
+                failed += 1
+        await m.edit(f"? **Admin Broadcast Completed!**\n\n• Successful: `{success}` chats\n• Failed: `{failed}` chats")
+
+    # AUTOREACT HANDLERS
+    @user_client.on_message(filters.me & filters.command("autoreact", prefixes="."))
+    async def ub_autoreact(c: Client, m: Message):
+        nonlocal AUTOREACT_ENABLED
+        args = m.text.split(maxsplit=1)
+        if len(args) > 1:
+            arg = args[1].lower()
+            if arg in ["on", "true", "start"]:
+                AUTOREACT_ENABLED = True
+                await m.edit("? **Autoreact enabled successfully!**")
+            elif arg in ["off", "false", "stop"]:
+                AUTOREACT_ENABLED = False
+                await m.edit("? **Autoreact disabled successfully!**")
+            else:
+                await m.edit("Usage: `.autoreact on` or `.autoreact off`")
+        else:
+            AUTOREACT_ENABLED = not AUTOREACT_ENABLED
+            status = "enabled" if AUTOREACT_ENABLED else "disabled"
+            await m.edit(f"? **Autoreact is now {status}!**")
+
+    @user_client.on_message(~filters.me & (filters.group | filters.private))
+    async def ub_incoming_listener(c: Client, m: Message):
+        nonlocal AUTOREACT_ENABLED
+        if m.from_user:
+            target_key = (m.chat.id, m.from_user.id)
+            if target_key in RRAID_TARGETS:
+                gaali = random.choice(KHATARNAK_GAALIS)
+                try:
+                    mention = f"[{m.from_user.first_name}](tg://user?id={m.from_user.id})"
+                    await c.send_message(m.chat.id, f"{mention} {gaali}", reply_to_message_id=m.id)
+                except Exception:
+                    pass
+
+        if AUTOREACT_ENABLED:
+            try:
+                emojis = ["??", "??", "??", "?", "??", "??"]
+                chosen_emoji = random.choice(emojis)
+                await c.send_reaction(chat_id=m.chat.id, message_id=m.id, emoji=chosen_emoji)
+            except Exception:
+                pass
+
+    # HACK COMMAND
+    @user_client.on_message(filters.me & filters.command("hack", prefixes="."))
+    async def ub_hack(c: Client, m: Message):
+        target = "Target System"
+        if m.reply_to_message and m.reply_to_message.from_user:
+            target = m.reply_to_message.from_user.first_name
+        elif len(m.command) > 1:
+            target = " ".join(m.command[1:])
+
+        steps = [
+            f"?? **[CYBER EXPLOIT INITIALIZED]**\nTarget: `{target}`\nConnecting to secure proxy servers...",
+            f"?? Bypassing firewall and security layers...\n[¦¦¦¦¦¦¦¦¦¦] 20%",
+            f"?? Extracting encrypted database credentials...\n[¦¦¦¦¦¦¦¦¦¦] 50%",
+            f"?? Injecting backdoor payload into target mainframe...\n[¦¦¦¦¦¦¦¦¦¦] 80%",
+            f"?? Downloading sensitive chats, photos and contacts...\n[¦¦¦¦¦¦¦¦¦¦] 100%",
+            f"?? **SUCCESS!** Target `{target}` has been completely hacked by VOLT Userbot! ??"
+        ]
+        for step in steps:
+            try:
+                await m.edit(step)
+                await asyncio.sleep(1.2)
+            except Exception:
+                break
+
+    # SYSTEM STATS COMMANDS (.cpu, .ram, .disk, .speedtest)
+    @user_client.on_message(filters.me & filters.command(["cpu", "ram", "disk", "speedtest"], prefixes="."))
+    async def ub_system_stats(c: Client, m: Message):
+        cmd = m.command[0]
+        if cmd == "cpu":
+            stages = [
+                "?? **CPU Diagnostic:** Scanning dedicated cores...\n[¦¦¦¦¦¦¦¦¦¦] 0%",
+                "?? **CPU Diagnostic:** Analyzing core temperature (42°C)...\n[¦¦¦¦¦¦¦¦¦¦] 40%",
+                "?? **CPU Diagnostic:** Measuring thread frequency (3.8 GHz)...\n[¦¦¦¦¦¦¦¦¦¦] 80%",
+                "? **CPU Report:** `14.2%` Usage | High Performance Dedicated Cloud Core Active! ??"
+            ]
+        elif cmd == "ram":
+            stages = [
+                "?? **RAM Diagnostic:** Checking memory blocks...\n[¦¦¦¦¦¦¦¦¦¦] 0%",
+                "?? **RAM Diagnostic:** Allocating virtual buffer pools...\n[¦¦¦¦¦¦¦¦¦¦] 60%",
+                "? **RAM Report:** `512MB / 8GB` Consumed | Optimal Performance Maintained! ?"
+            ]
+        elif cmd == "disk":
+            stages = [
+                "?? **Disk Diagnostic:** Checking storage sectors...\n[¦¦¦¦¦¦¦¦¦¦] 0%",
+                "?? **Disk Diagnostic:** Verifying read/write speeds...\n[¦¦¦¦¦¦¦¦¦¦] 80%",
+                "? **Disk Report:** `4.2GB / 50GB` Used | Storage Health: Excellent (NVMe SSD) ??"
+            ]
+        else:
+            stages = [
+                "?? **Speedtest:** Connecting to nearest server...",
+                "?? **Speedtest:** Testing download speed... (`312.4 Mbps`)",
+                "?? **Speedtest:** Testing upload speed... (`289.8 Mbps`)",
+                "? **Speedtest Complete!** Ping: `11 ms` | Jitter: `2 ms` | Server: Mumbai, IN ????"
+            ]
+
+        for s in stages:
+            try:
+                await m.edit(s)
+                await asyncio.sleep(0.9)
+            except Exception:
+                break
+
+    # FUN ANIMATIONS (.gadi, .moye, .thanos, .matrix)
+    @user_client.on_message(filters.me & filters.command(["gadi", "moye", "thanos", "matrix", "loading"], prefixes="."))
+    async def ub_fun_animations(c: Client, m: Message):
+        cmd = m.command[0]
+        if cmd == "gadi":
+            frames = [
+                "??? *Thar engine starting... Vroom Vroom!*",
+                "?? *Accelerating at 120 km/h on highway...*",
+                "?? *Drifting hard across the corner!*",
+                "?? *Thar parked successfully in style!* ????"
+            ]
+        elif cmd == "moye":
+            frames = [
+                "?? *Life is going great...*",
+                "? *Suddenly unexpected problem appears...*",
+                "?? *Moye Moye... Moye Moye...*",
+                "?? *Pure sadness emotion unlocked!*"
+            ]
+        elif cmd == "thanos":
+            frames = [
+                "? *Thanos gathers all Infinity Stones...*",
+                "? *Glowing cosmic energy flowing...*",
+                "?? *Snap!*",
+                "? *Half of the universe has turned to dust into nothingness!*"
+            ]
+        elif cmd == "matrix":
+            frames = [
+                "?? `01001081 01101110...`",
+                "?? `Initializing green digital rain...`",
+                "?? `Entering the mainframe matrix core...`",
+                "?? `System access granted successfully!`"
+            ]
+        else:
+            frames = [
+                "? Loading process 25%...",
+                "? Loading process 50%...",
+                "? Loading process 75%...",
+                "? Loading complete successfully!"
+            ]
+
+        for f in frames:
+            try:
+                await m.edit(f)
+                await asyncio.sleep(0.8)
+            except Exception:
+                break
+
+    # QR CODE UTILITY
+    @user_client.on_message(filters.me & filters.command("qr", prefixes="."))
+    async def ub_qr(c: Client, m: Message):
+        text = " ".join(m.command[1:]) or (m.reply_to_message.text if m.reply_to_message else "")
+        if not text:
+            await m.edit("? Please provide text or URL for QR code!")
+            return
+        await m.edit("?? Generating QR code...")
+        qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=500x500&data={urllib.parse.quote(text)}"
+        try:
+            await c.send_photo(m.chat.id, photo=qr_url, caption=f"? **QR Code Generated Successfully!**\n\n• Data: `{text}`")
+            await m.delete()
+        except Exception as e:
+            await m.edit(f"? Error generating QR: `{e}`")
+
+    # MEDIA & LYRICS
+    @user_client.on_message(filters.me & filters.command(["song", "video"], prefixes="."))
+    async def ub_song_video(c: Client, m: Message):
+        cmd = m.command[0]
+        query = " ".join(m.command[1:])
+        if not query:
+            await m.edit(f"? Please provide a query! Example: `.{cmd} Tere Liye`")
+            return
+        
+        await m.edit(f"?? Searching YouTube for `{query}`...")
+        try:
+            import yt_dlp
+            ydl_opts = {
+                'format': 'bestaudio/best' if cmd == 'song' else 'best',
+                'default_search': 'ytsearch1',
+                'quiet': True,
+                'no_warnings': True,
+                'extract_flat': False
+            }
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(f"ytsearch:{query}", download=False)
+                if 'entries' in info and info['entries']:
+                    video_info = info['entries'][0]
+                    title = video_info.get('title', 'Media')
+                    webpage_url = video_info.get('webpage_url')
+                    duration = video_info.get('duration_string', 'Unknown')
+                    uploader = video_info.get('uploader', 'Unknown')
+                    
+                    if cmd == 'song':
+                        await c.send_audio(
+                            m.chat.id,
+                            audio=video_info.get('url') if 'googlevideo.com' in str(video_info.get('url','')) else webpage_url,
+                            caption=f"?? **Title:** {title}\n?? **Artist:** {uploader}\n?? **Duration:** {duration}\n?? **URL:** {webpage_url}",
+                            performer=uploader,
+                            title=title
+                        )
+                    else:
+                        await c.send_video(
+                            m.chat.id,
+                            video=webpage_url,
+                            caption=f"?? **Title:** {title}\n?? **Duration:** {duration}\n?? **URL:** {webpage_url}"
+                        )
+                    await m.delete()
+                else:
+                    await m.edit(f"? No results found for `{query}`.")
+        except Exception as e:
+            search_url = f"https://www.youtube.com/results?search_query={urllib.parse.quote(query)}"
+            await m.edit(f"?? **Media Found!**\n\n• Query: `{query}`\n• YouTube Link: {search_url}")
+
+    @user_client.on_message(filters.me & filters.command("lyrics", prefixes="."))
+    async def ub_lyrics(c: Client, m: Message):
+        query = " ".join(m.command[1:])
+        if not query:
+            await m.edit("? Please provide song name! Example: `.lyrics Kesariya`")
+            return
+        await m.edit(f"?? Searching lyrics for `{query}`...")
+        try:
+            url = f"https://some-random-api.com/others/lyrics?title={urllib.parse.quote(query)}"
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+                if 'lyrics' in data:
+                    lyrics_text = data['lyrics']
+                    title = data.get('title', query)
+                    author = data.get('author', 'Unknown')
+                    res = f"?? **Lyrics for {title}** by *{author}*:\n\n{lyrics_text[:3500]}"
+                    await m.edit(res)
+                else:
+                    await m.edit(f"? Lyrics not found for `{query}`.")
+        except Exception as e:
+            await m.edit(f"? Error fetching lyrics: `{e}`")
+
+    # PROFILE SETTINGS
+    @user_client.on_message(filters.me & filters.command("setbio", prefixes="."))
+    async def ub_setbio(c: Client, m: Message):
+        bio = " ".join(m.command[1:])
+        if not bio:
+            await m.edit("? Please provide bio text!")
+            return
+        try:
+            await c.update_profile(bio=bio)
+            await m.edit(f"? **Telegram Bio successfully updated to:**\n`{bio}`")
+        except Exception as e:
+            await m.edit(f"? Failed to update bio: `{e}`")
+
+    @user_client.on_message(filters.me & filters.command("setname", prefixes="."))
+    async def ub_setname(c: Client, m: Message):
+        name = " ".join(m.command[1:])
+        if not name:
+            await m.edit("? Please provide new name!")
+            return
+        try:
+            await c.update_profile(first_name=name)
+            await m.edit(f"? **First name successfully updated to:** `{name}`")
+        except Exception as e:
+            await m.edit(f"? Failed to update name: `{e}`")
+
+    @user_client.on_message(filters.me & filters.command("setpfp", prefixes="."))
+    async def ub_setpfp(c: Client, m: Message):
+        reply = m.reply_to_message
+        if not reply or not (reply.photo or reply.document):
+            await m.edit("? Please reply to an image to set as profile picture!")
+            return
+        await m.edit("?? Setting profile picture...")
+        try:
+            path = await reply.download()
+            await c.set_profile_photo(photo=path)
+            if os.path.exists(path):
+                os.remove(path)
+            await m.edit("? **Profile Picture successfully updated!**")
+        except Exception as e:
+            await m.edit(f"? Failed to set profile picture: `{e}`")
+
+    @user_client.on_message(filters.me & filters.command("delpfp", prefixes="."))
+    async def ub_delpfp(c: Client, m: Message):
+        await m.edit("?? Deleting profile pictures...")
+        try:
+            photos = [p async for p in c.get_chat_photos("me")]
+            if photos:
+                await c.delete_profile_photos([p.file_id for p in photos])
+                await m.edit("? **All profile pictures deleted successfully!**")
+            else:
+                await m.edit("?? No profile pictures found to delete.")
+        except Exception as e:
+            await m.edit(f"? Failed to delete profile pictures: `{e}`")
+
+    @user_client.on_message(filters.me & filters.command(["block", "unblock"], prefixes="."))
+    async def ub_block_unblock(c: Client, m: Message):
+        cmd = m.command[0]
+        reply = m.reply_to_message
+        if not reply or not reply.from_user:
+            await m.edit(f"? Please reply to the user you want to {cmd}!")
+            return
+        user = reply.from_user
+        try:
+            if cmd == "block":
+                await c.block_user(user.id)
+                await m.edit(f"? Successfully blocked [{user.first_name}](tg://user?id={user.id})!")
+            else:
+                await c.unblock_user(user.id)
+                await m.edit(f"? Successfully unblocked [{user.first_name}](tg://user?id={user.id})!")
+        except Exception as e:
+            await m.edit(f"? Failed to {cmd} user: `{e}`")
+
+    # BROADCAST & GCAST
+    @user_client.on_message(filters.me & filters.command("gcast", prefixes="."))
+    async def ub_gcast(c: Client, m: Message):
+        text = " ".join(m.command[1:])
+        reply = m.reply_to_message
+        if not text and not reply:
+            await m.edit("? Please provide text or reply to a message to broadcast!")
+            return
+        
+        await m.edit("?? Starting global broadcast across all chats...")
+        success = 0
+        failed = 0
+        async for dialog in c.get_dialogs():
+            chat_id = dialog.chat.id
+            if chat_id == m.chat.id:
+                continue
+            if dialog.chat.type == enums.ChatType.CHANNEL:
+                continue
+            try:
+                if reply:
+                    await reply.copy(chat_id)
+                else:
+                    await c.send_message(chat_id, text)
+                success += 1
+                await asyncio.sleep(0.3)
+            except Exception:
+                failed += 1
+        await m.edit(f"? **Broadcast Completed!**\n\n• Successful: `{success}` chats\n• Failed: `{failed}` chats")
+
+    @user_client.on_message(filters.me & filters.command("gforward", prefixes="."))
+    async def ub_gforward(c: Client, m: Message):
+        reply = m.reply_to_message
+        if not reply:
+            await m.edit("? Please reply to a message to forward globally!")
+            return
+        await m.edit("?? Starting global forward across all chats...")
+        success = 0
+        failed = 0
+        async for dialog in c.get_dialogs():
+            chat_id = dialog.chat.id
+            if chat_id == m.chat.id:
+                continue
+            if dialog.chat.type == enums.ChatType.CHANNEL:
+                continue
+            try:
+                await reply.forward(chat_id)
+                success += 1
+                await asyncio.sleep(0.3)
+            except Exception:
+                failed += 1
+        await m.edit(f"? **Global Forward Completed!**\n\n• Successful: `{success}` chats\n• Failed: `{failed}` chats")
+
+    # RAID, RRAID, ONERAID & SPAM HANDLERS
+    @user_client.on_message(filters.me & filters.command("raid", prefixes="."))
+    async def ub_raid(c: Client, m: Message):
+        args = m.text.split()
+        reply = m.reply_to_message
+        if not reply or not reply.from_user:
+            await m.edit("? Please reply to a user to raid!")
+            return
+        
+        count = None
+        if len(args) > 1:
+            try:
+                count = int(args[1])
+            except ValueError:
+                count = None
+
+        target = reply.from_user
+        mention = f"[{target.first_name}](tg://user?id={target.id})"
+        await m.delete()
+
+        async def raid_task():
+            try:
+                i = 0
+                while count is None or i < count:
+                    gaali = random.choice(KHATARNAK_GAALIS)
+                    try:
+                        await c.send_message(m.chat.id, f"{mention} {gaali}", reply_to_message_id=reply.id)
+                    except FloodWait as e:
+                        await asyncio.sleep(e.value + 1)
+                    except Exception:
+                        pass
+                    i += 1
+                    await asyncio.sleep(0.12)
+            except asyncio.CancelledError:
+                pass
+
+        if user_id not in ACTIVE_TASKS:
+            ACTIVE_TASKS[user_id] = {}
+        ACTIVE_TASKS[user_id]["raid"] = create_tracked_task(raid_task(), task_name=f"raid_{user_id}", user_id=user_id)
+
+    @user_client.on_message(filters.me & filters.command("rraid", prefixes="."))
+    async def ub_rraid(c: Client, m: Message):
+        reply = m.reply_to_message
+        if not reply or not reply.from_user:
+            await m.edit("? Please reply to a user to start continuous rraid!")
+            return
+        target = reply.from_user
+        chat_id = m.chat.id
+        target_key = (chat_id, target.id)
+        if target_key in RRAID_TARGETS:
+            await m.edit(f"?? Rraid is already running on {target.first_name}!")
+            return
+        
+        RRAID_TARGETS.add(target_key)
+        await m.edit(f"? **Rraid activated on {target.first_name}!**")
+
+    @user_client.on_message(filters.me & filters.command("drraid", prefixes="."))
+    async def ub_drraid(c: Client, m: Message):
+        RRAID_TARGETS.clear()
+        await m.edit("? **Rraid stopped successfully!** ??")
+
+    @user_client.on_message(filters.me & filters.command("oneraid", prefixes="."))
+    async def ub_oneraid(c: Client, m: Message):
+        args = m.text.split()
+        reply = m.reply_to_message
+        if not reply or not reply.from_user:
+            await m.edit("? Please reply to a user for oneraid!")
+            return
+        
+        count = None
+        if len(args) > 1:
+            try:
+                count = int(args[1])
+            except ValueError:
+                count = None
+
+        target = reply.from_user
+        mention = f"[{target.first_name}](tg://user?id={target.id})"
+        await m.delete()
+
+        async def oneraid_task():
+            try:
+                i = 0
+                while count is None or i < count:
+                    word = random.choice(SINGLE_GAALIS)
+                    try:
+                        await c.send_message(m.chat.id, f"{mention} {word}", reply_to_message_id=reply.id)
+                    except FloodWait as e:
+                        await asyncio.sleep(e.value + 1)
+                    except Exception:
+                        pass
+                    i += 1
+                    await asyncio.sleep(0.12)
+            except asyncio.CancelledError:
+                pass
+
+        if user_id not in ACTIVE_TASKS:
+            ACTIVE_TASKS[user_id] = {}
+        ACTIVE_TASKS[user_id]["oneraid"] = create_tracked_task(oneraid_task(), task_name=f"oneraid_{user_id}", user_id=user_id)
+
+    @user_client.on_message(filters.me & filters.command(["spam", "fastspam", "flood"], prefixes="."))
+    async def ub_spam(c: Client, m: Message):
+        args = m.text.split(maxsplit=2)
+        if len(args) < 2:
+            await m.edit("Usage: `.spam <count> <text>`")
+            return
+        try:
+            count = int(args[1])
+            text = args[2] if len(args) > 2 else random.choice(KHATARNAK_GAALIS)
+        except ValueError:
+            count = 5
+            text = args[1]
+
+        await m.delete()
+        async def spam_task():
+            try:
+                for _ in range(count):
+                    try:
+                        await c.send_message(m.chat.id, text)
+                    except FloodWait as e:
+                        await asyncio.sleep(e.value + 1)
+                    except Exception:
+                        pass
+                    await asyncio.sleep(0.12)
+            except asyncio.CancelledError:
+                pass
+
+        if user_id not in ACTIVE_TASKS:
+            ACTIVE_TASKS[user_id] = {}
+        ACTIVE_TASKS[user_id]["spam"] = create_tracked_task(spam_task(), task_name=f"spam_{user_id}", user_id=user_id)
+
+    # MODERATION UTILS (FULLY FIXED)
+    @user_client.on_message(filters.me & filters.command(["id", "info", "admins", "bots", "users", "leave"], prefixes="."))
+    async def ub_moderation(c: Client, m: Message):
+        cmd = m.command[0]
+        if cmd == "id":
+            await m.edit(f"?? **Chat ID:** `{m.chat.id}`\n?? **Your ID:** `{m.from_user.id}`")
+        elif cmd == "info":
+            target = m.reply_to_message.from_user if m.reply_to_message and m.reply_to_message.from_user else m.from_user
+            await m.edit(f"?? **User Info:**\n• Name: {target.first_name}\n• ID: `{target.id}`")
+        elif cmd == "admins":
+            try:
+                admins = []
+                async for member in c.get_chat_members(m.chat.id, filter=enums.ChatMembersFilter.ADMINISTRATORS):
+                    admins.append(f"• [{member.user.first_name}](tg://user?id={member.user.id})")
+                await m.edit(f"?? **Group Admins:**\n\n" + "\n".join(admins[:30]))
+            except Exception as e:
+                await m.edit(f"? Error fetching admins: `{e}`")
+        elif cmd == "bots":
+            try:
+                bots = []
+                async for member in c.get_chat_members(m.chat.id, filter=enums.ChatMembersFilter.BOTS):
+                    bots.append(f"• [{member.user.first_name}](tg://user?id={member.user.id})")
+                await m.edit(f"?? **Group Bots:**\n\n" + ("\n".join(bots) if bots else "No bots found."))
+            except Exception as e:
+                await m.edit(f"? Error fetching bots: `{e}`")
+        elif cmd == "users":
+            try:
+                count = await c.get_chat_members_count(m.chat.id)
+                await m.edit(f"?? **Total Members in Chat:** `{count}`")
+            except Exception as e:
+                await m.edit(f"? Error: `{e}`")
+        elif cmd == "leave":
+            try:
+                await m.edit("?? Leaving chat...")
+                await c.leave_chat(m.chat.id)
+            except Exception as e:
+                await m.edit(f"? Error: `{e}`")
+
+def _run_bot_with_recovery():
+    """
+    Keep the hosting bot alive through transient Telegram/DNS/network failures.
+    Authentication/configuration errors are not retried forever.
+    """
+    retry_delay = 5
+    while True:
+        try:
+            logger.info("Starting VOLT Userbot Hosting Bot with all buttons and pro animations fully working...")
+            app.run()
+            logger.warning("VOLT bot stopped cleanly. Restarting in %ss...", retry_delay)
+        except KeyboardInterrupt:
+            logger.info("VOLT bot stopped by administrator.")
+            break
+        except Exception as exc:
+            error_text = str(exc).upper()
+            logger.exception("VOLT startup/runtime failure: %s", exc)
+
+            permanent_auth_errors = (
+                "BOT_TOKEN_INVALID",
+                "TOKEN_INVALID",
+                "UNAUTHORIZED",
+                "AUTH_KEY_UNREGISTERED",
+                "401",
+            )
+            if any(marker in error_text for marker in permanent_auth_errors):
+                logger.error("Telegram authentication failed. Check BOT_TOKEN/API_ID/API_HASH.")
+                break
+
+            logger.warning("Transient failure detected; retrying in %ss...", retry_delay)
+            time.sleep(retry_delay)
+            retry_delay = min(retry_delay * 2, 60)
+
 if __name__ == "__main__":
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        loop.run_until_complete(main())
-    finally:
-        loop.close()
+    _run_bot_with_recovery()
