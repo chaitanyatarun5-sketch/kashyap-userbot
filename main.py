@@ -70,20 +70,20 @@ logger = logging.getLogger("VOLT_USERBOT")
 # -----------------------------------------------------------------------------
 # CONFIGURATION & CONSTANTS
 # -----------------------------------------------------------------------------
-API_ID = 39475299
-API_HASH = "4203992a8c6c0aab7ad639e785f77bb5"
-BOT_TOKEN = "8954856593:AAFmZPdm2ePvOA2eH6-Hs9bbtzaliOC_6K8"
+API_ID = 39105091
+API_HASH = "257594e70a9926b6bb44644e17be94a9"
+BOT_TOKEN = "9241124031:AAFa6bpjJSq_gGhYgRDqrxjEbFcvsZiYcl4"
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN is required in the Railway environment.")
 
-OWNER_ID = 8747221712
-OWNER_USERNAME = "Harukasakura01"
+OWNER_ID = 9239452757
+OWNER_USERNAME = "KASHYAP17"
 
-CO_OWNER_ID = 5769074791
+CO_OWNER_ID = 9108265973
 CO_OWNER_USERNAME = "ix_aura"
 
 FORCE_CHANNEL_ID = -1003739475692
-FORCE_CHANNEL_LINK = "https://t.me/VOLT_CHANNEL_UP"
+FORCE_CHANNEL_LINK = "https://t.me/Hacrrrrjoin2"
 
 FORCE_GROUP_ID = -1004304252893
 FORCE_GROUP_LINK = "https://t.me/+2Ynr7yEH5mljM2U0"
