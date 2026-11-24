@@ -1,30 +1,31 @@
-import os, threading
+import os
+import sys
+import asyncio
+import random
+import re
+import threading
+from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 class H(BaseHTTPRequestHandler):
     def do_GET(self):
-        self.send_response(200); self.end_headers()
+        self.send_response(200)
+        self.end_headers()
         self.wfile.write(b"Bot is Live!")
-    def log_message(self, *a): pass
+    def log_message(self, *a):
+        pass
 
 def run_web():
     port = int(os.environ.get("PORT", 10000))
     HTTPServer(("0.0.0.0", port), H).serve_forever()
 
 threading.Thread(target=run_web, daemon=True).start()
+
 # ==========================================
 # VILLIAN USERBOT & HOSTING BOT V2.0 (UPDATED)
 # OWNER: kashayap (5769074791)
 # ==========================================
 
-import os
-import sys
-import asyncio
-import random
-import re
-from datetime import datetime
-
-# Auto-install dependencies if missing on hosting platforms like Railway
 try:
     import telethon
 except ImportError:
@@ -40,19 +41,25 @@ from telethon.tl.types import ReactionEmoji
 # CONFIGURATION
 API_ID = 39105091
 API_HASH = "257594e70a9926b6bb44644e17be94a9"
-BOT_TOKEN = "9241124031:AAFa6bpjJSq_gGhYgRDqrxjEbFcvsZiYcl4"  # Updated with your new token
+BOT_TOKEN = "9241124031:AAFa6bpjJSq_gGhYgRDqrxjEbFcvsZiYcl4"
 OWNER_ID = 9239452757
 OWNER_NAME = "KASHYAP"
 
 # ONE-WORD HEAVY GAALI & INSULT DATABASE
 RAW_BASE_GAALIS = [
-    "MADARCHOD", "GAANDU", "CHUTIYA", "BHADWA", "RANDI", 
-    "LUND", "HIJDA", "CHHAKKA", "SUAR", "KAMINEY", 
-    "KANJAR", "HARAMKHOR", "BESHARM", "CHUTMARIKE", "LODU", 
+    "MADARCHOD", "GAANDU", "CHUTIYA", "BHADWA", "RANDI",
+    "LUND", "HIJDA", "CHHAKKA", "SUAR", "KAMINEY",
+    "KANJAR", "HARAMKHOR", "BESHARM", "CHUTMARIKE", "LODU",
     "CHHINAR", "KAMJAT", "BHAND", "TAPORI", "GADDAR",
     "LAVDE", "KUTTA", "BALLU", "DHakkan", "CHUTMARIKA",
     "BAYMAN", "NALAYAK", "ULRAG", "FARIA", "CHAMPAN",
     "BEGHARAT", "KAMINE", "CHALBAZ", "KASAI", "GHATIYA"
+]
+
+SINGLE_GAALIS = [
+    "MADARCHOD", "BHOOTNIKE", "CHUTIYE", "GANDU", "RANDI",
+    "LODE", "BHOSDIKE", "LAWDE", "HIJRA", "MC", "BC",
+    "TERIMA", "CHUT", "HRAMKHOR", "NALAYAK", "BAKKANCHOD"
 ]
 
 # Expanding dynamically to 1000+ heavy single-word variants
@@ -106,13 +113,16 @@ def format_faraid(text):
 user_sessions = {}
 active_raids = set()
 active_raid_tasks = {}       # chat_id: asyncio.Task
+rraid_targets = set()        # (chat_id, user_id)
 self_reacts = {}             # chat_id: emoji (for .ar)
 user_react_targets = {}      # chat_id: set of user_ids (for .uar)
 all_reacts = {}              # chat_id: [emojis] (for .rar)
 chat_welcomes = {}           # chat_id: {'text': str, 'media': file}
 
 # INITIALIZE BOT CLIENT (HOSTING PANEL)
-bot = TelegramClient('host_bot_session', API_ID, API_HASH).start(bot_token=BOT_TOKEN)
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
+bot = TelegramClient('host_bot_session', API_ID, API_HASH, loop=loop).start(bot_token=BOT_TOKEN)
 
 @bot.on(events.NewMessage(pattern='/start'))
 async def start_handler(event):
@@ -121,7 +131,7 @@ async def start_handler(event):
         f"  ??? **{OWNER_NAME.upper()} USERBOT HOSTING** ???\n"
         f"+----------------------+\n\n"
         f"? **HEY, I AM YOUR USERBOT MANAGER!**\n"
-        f"?? Single-Word Heavy Raids & Custom Advanced Auto-Reacts loaded.\n\n"
+        f"?? Single-Word Heavy Raids, Spam & Custom Advanced Auto-Reacts loaded.\n\n"
         f"?? **Click below to host or view commands:**"
     )
     buttons = [
@@ -145,20 +155,26 @@ async def guide_cb(event):
 
 @bot.on(events.CallbackQuery(data=b'source'))
 async def source_cb(event):
-    await event.answer("Private VILLIAN Userbot Source Code. Fully Optimized for Railway.", alert=True)
+    await event.answer("Private VILLIAN Userbot Source Code. Fully Optimized for Hosting.", alert=True)
 
 @bot.on(events.CallbackQuery(data=b'help_cmd'))
 async def help_cb(event):
     await event.answer("Opening Help Menu...", alert=False)
     help_msg = (
         "?? **USERBOT COMMANDS & USAGE** ??\n\n"
+        "• `.raid [count]` (Reply) - Heavy Raid\n"
+        "• `.oneraid [count]` (Reply) - Single-Word Raid\n"
+        "• `.rraid` / `.drraid` (Reply) - Auto-Reply Raid On/Off\n"
+        "• `.spam [count] [text]` - Normal Spam\n"
+        "• `.fastspam [count] [text]` - Fast Spam\n"
+        "• `.flood [count] [text]` - Flood Spam\n"
         "• `.araid [link/tag]` - One-Word Heavy Raid\n"
         "• `.saraid / .oaraid / .faraid / .earaid` - Variant Raids\n"
         "• `.ar [emoji]` - Self Auto-React (Stop: `.dar`)\n"
         "• `.uar` (Reply or `@username`) - Target User Auto-React with `??` (Stop: `.duar`)\n"
         "• `.rar [emojis...]` - All Chat Messages Auto-React (Stop: `.drar`)\n"
         "• `/welcome [text]` (Send with pic or reply to pic) - Set Welcome Pic & Msg\n"
-        "• `.stop` / `.stopall` - Stop Active Raids\n\n"
+        "• `.stop` / `.stopall` - Stop Active Raids & Spams\n\n"
         "? Speed: **Single-Word Heavy Insults, Unlimited Continuous Mode**"
     )
     await event.respond(help_msg)
@@ -171,21 +187,21 @@ async def host_login_cb(event):
         await conv.send_message("?? **Send phone number in international format:**\n`+91XXXXXXXXXX`")
         phone_msg = await conv.get_response()
         phone = phone_msg.text.strip()
-        
+
         client = TelegramClient(StringSession(), API_ID, API_HASH)
         await client.connect()
-        
+
         try:
             sent = await client.send_code_request(phone)
         except Exception as e:
             await conv.send_message(f"? Error sending code: `{e}`")
             await client.disconnect()
             return
-        
+
         await conv.send_message("? **Code sent!** Please send the OTP code received on Telegram:")
         code_msg = await conv.get_response()
         code = "".join(code_msg.text.split())
-        
+
         try:
             await client.sign_in(phone, code, phone_code_hash=sent.phone_code_hash)
         except SessionPasswordNeededError:
@@ -202,28 +218,28 @@ async def host_login_cb(event):
             await conv.send_message(f"? Sign in error: `{e}`")
             await client.disconnect()
             return
-        
+
         session_str = client.session.save()
         user_sessions[sender_id] = session_str
-        
+
         asyncio.create_task(start_userbot_session(session_str, sender_id))
-        
+
         await conv.send_message(
             f"? **Hosted done successfully!**\n"
-            f"? Active commands loaded: `.araid`, `.ar`, `.dar`, `.uar`, `.duar`, `.rar`, `.drar`, `/welcome`, `.stopall`\n"
+            f"? Active commands loaded: `.raid`, `.oneraid`, `.rraid`, `.drraid`, `.spam`, `.fastspam`, `.flood`, `.araid`, `.ar`, `.dar`, `.uar`, `.duar`, `.rar`, `.drar`, `/welcome`, `.stopall`\n"
             f"?? Logged in for: **{OWNER_NAME}**"
         )
 
 # DYNAMIC USERBOT SESSION RUNNER
 async def start_userbot_session(session_string, owner_id):
     ubot = TelegramClient(StringSession(session_string), API_ID, API_HASH)
-    
+
     # WELCOME FEATURE: SET WELCOME WITH PIC & TEXT
     @ubot.on(events.NewMessage(outgoing=True, pattern=r'^\/welcome'))
     async def set_welcome_handler(event):
         chat_id = event.chat_id
         text_arg = event.raw_text.replace('/welcome', '').strip()
-        
+
         if event.is_reply:
             reply = await event.get_reply_message()
             text = text_arg or (reply.text if reply and reply.text else "Welcome to the group! ??")
@@ -301,7 +317,7 @@ async def start_userbot_session(session_string, owner_id):
         chat_id = event.chat_id
         args = event.raw_text.split()
         target_user = None
-        
+
         if event.is_reply:
             reply_msg = await event.get_reply_message()
             target_user = reply_msg.sender_id
@@ -362,6 +378,117 @@ async def start_userbot_session(session_string, owner_id):
         else:
             await event.edit("? No active all-message auto-react in this chat.")
 
+    # 4. REPLY RAID (.rraid / .drraid)
+    @ubot.on(events.NewMessage(pattern=r'^\.rraid$', outgoing=True))
+    async def rraid_start_cmd(event):
+        if not event.is_reply:
+            await event.edit("? Reply to a user's message with `.rraid`.")
+            return
+        reply = await event.get_reply_message()
+        if not reply.sender_id:
+            await event.edit("? Target user ID not found.")
+            return
+        rraid_targets.add((event.chat_id, reply.sender_id))
+        await event.edit(f"? **RRAID Enabled** for `{reply.sender_id}`!")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.drraid$', outgoing=True))
+    async def rraid_stop_cmd(event):
+        if event.is_reply:
+            reply = await event.get_reply_message()
+            rraid_targets.discard((event.chat_id, reply.sender_id))
+            await event.edit(f"?? **RRAID Stopped** for `{reply.sender_id}`.")
+        else:
+            for item in [x for x in rraid_targets if x[0] == event.chat_id]:
+                rraid_targets.discard(item)
+            await event.edit("?? **All RRAID stopped in this chat.**")
+
+    @ubot.on(events.NewMessage(incoming=True))
+    async def rraid_watcher(event):
+        if event.sender_id and (event.chat_id, event.sender_id) in rraid_targets:
+            try:
+                await event.reply(random.choice(GAALIS))
+            except FloodWaitError as f:
+                await asyncio.sleep(f.seconds + 0.5)
+            except Exception:
+                pass
+
+    # 5. SPAM / FASTSPAM / FLOOD
+    async def _spam_worker(target_chat, count, text, delay):
+        try:
+            for _ in range(count):
+                if target_chat not in active_raids:
+                    break
+                try:
+                    await ubot.send_message(target_chat, text)
+                except FloodWaitError as f:
+                    await asyncio.sleep(f.seconds + 0.5)
+                except Exception:
+                    break
+                if delay > 0:
+                    await asyncio.sleep(delay)
+        finally:
+            active_raids.discard(target_chat)
+            active_raid_tasks.pop(target_chat, None)
+
+    @ubot.on(events.NewMessage(pattern=r'^\.(spam|fastspam|flood)\b', outgoing=True))
+    async def spam_cmd_handler(event):
+        cmd = event.pattern_match.group(1)
+        parts = event.raw_text.split(maxsplit=2)
+        if len(parts) < 3 or not parts[1].isdigit():
+            await event.edit(f"? Usage: `.{cmd} [count] [text]`")
+            return
+        count = max(1, min(int(parts[1]), 300))
+        text = parts[2]
+        delay = 0.05 if cmd == "fastspam" else (0.15 if cmd == "flood" else 0.25)
+
+        if event.chat_id in active_raid_tasks:
+            active_raid_tasks[event.chat_id].cancel()
+        active_raids.add(event.chat_id)
+        try:
+            await event.delete()
+        except Exception:
+            pass
+        task = asyncio.create_task(_spam_worker(event.chat_id, count, text, delay))
+        active_raid_tasks[event.chat_id] = task
+
+    # 6. RAID & ONERAID (.raid / .oneraid)
+    async def _basic_raid_worker(target_chat, reply_to, count, single_only=False):
+        try:
+            for _ in range(count):
+                if target_chat not in active_raids:
+                    break
+                msg = random.choice(SINGLE_GAALIS) if single_only else random.choice(GAALIS)
+                try:
+                    if reply_to:
+                        await ubot.send_message(target_chat, msg, reply_to=reply_to)
+                    else:
+                        await ubot.send_message(target_chat, msg)
+                except FloodWaitError as f:
+                    await asyncio.sleep(f.seconds + 0.5)
+                except Exception:
+                    break
+                await asyncio.sleep(0.2)
+        finally:
+            active_raids.discard(target_chat)
+            active_raid_tasks.pop(target_chat, None)
+
+    @ubot.on(events.NewMessage(pattern=r'^\.(raid|oneraid)\b', outgoing=True))
+    async def basic_raid_handler(event):
+        cmd = event.pattern_match.group(1)
+        parts = event.raw_text.split(maxsplit=1)
+        count = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 15
+        count = max(1, min(count, 300))
+
+        if event.chat_id in active_raid_tasks:
+            active_raid_tasks[event.chat_id].cancel()
+        active_raids.add(event.chat_id)
+        try:
+            await event.delete()
+        except Exception:
+            pass
+        task = asyncio.create_task(_basic_raid_worker(event.chat_id, event.reply_to_msg_id, count, single_only=(cmd == "oneraid")))
+        active_raid_tasks[event.chat_id] = task
+
     # Background Continuous/Unlimited Raid Worker Loop with Single-Word Insults
     async def raid_worker(target_chat, command, reply_to, count):
         iteration = 0
@@ -395,7 +522,7 @@ async def start_userbot_session(session_string, owner_id):
                 await asyncio.sleep(f.seconds + 0.5)
             except Exception:
                 await asyncio.sleep(0.5)
-                
+
             iteration += 1
             await asyncio.sleep(1.1 / 8)
 
@@ -409,18 +536,18 @@ async def start_userbot_session(session_string, owner_id):
     async def raid_handler(event):
         command = event.pattern_match.group(1)
         args = event.raw_text.split()
-        
+
         target_chat = event.chat_id
         reply_to = event.reply_to_msg_id
         count = None  # Default to continuous/unlimited
         target_arg = None
-        
+
         for arg in args[1:]:
             if arg.isdigit():
                 count = int(arg)
             else:
                 target_arg = arg
-        
+
         if target_arg:
             if "t.me/" in target_arg:
                 if "/c/" in target_arg:
@@ -483,6 +610,8 @@ async def start_userbot_session(session_string, owner_id):
         for chat_id, task in active_raid_tasks.items():
             task.cancel()
         active_raid_tasks.clear()
+        for item in [x for x in rraid_targets if x[0] == event.chat_id]:
+            rraid_targets.discard(item)
         try:
             await event.edit("?? **All Raids Stopped Globally!**")
         except Exception:
