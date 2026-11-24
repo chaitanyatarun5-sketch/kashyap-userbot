@@ -24,11 +24,11 @@ from telethon.tl.functions.messages import SendReactionRequest
 from telethon.tl.types import ReactionEmoji
 
 # CONFIGURATION
-API_ID = 39475299
-API_HASH = "4203992a8c6c0aab7ad639e785f77bb5"
-BOT_TOKEN = "8786112166:AAHOlxGpdXcOhBE9bdwpQsdFHkb_nBtdzqQ"  # Updated with your new token
-OWNER_ID = 5769074791
-OWNER_NAME = "volt"
+API_ID = 39105091
+API_HASH = "257594e70a9926b6bb44644e17be94a9"
+BOT_TOKEN = "9241124031:AAFa6bpjJSq_gGhYgRDqrxjEbFcvsZiYcl4"  # Updated with your new token
+OWNER_ID = 9239452757
+OWNER_NAME = "KASHYAP"
 
 # ONE-WORD HEAVY GAALI & INSULT DATABASE
 RAW_BASE_GAALIS = [
