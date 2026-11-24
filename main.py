@@ -1797,5 +1797,11 @@ def _run_bot_with_recovery():
             time.sleep(retry_delay)
             retry_delay = min(retry_delay * 2, 60)
 
+keep_alive()
 if __name__ == "__main__":
-    _run_bot_with_recovery()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(main())
+    finally:
+        loop.close()
