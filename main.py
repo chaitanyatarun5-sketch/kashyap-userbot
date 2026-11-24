@@ -41,7 +41,7 @@ from telethon.tl.types import ReactionEmoji
 # CONFIGURATION
 API_ID = 39105091
 API_HASH = "257594e70a9926b6bb44644e17be94a9"
-BOT_TOKEN = "9241124031:AAFa6bpjJSq_gGhYgRDqrxjEbFcvsZiYcl4"
+BOT_TOKEN = "9241124031:AAFa6bpjJSq_gGhYgRDqrxjEbFcvsZiYcl4"  # Updated with your new token
 OWNER_ID = 9239452757
 OWNER_NAME = "KASHYAP"
 
@@ -62,6 +62,34 @@ SINGLE_GAALIS = [
     "TERIMA", "CHUT", "HRAMKHOR", "NALAYAK", "BAKKANCHOD"
 ]
 
+ENGLISH_RAIDS = [
+    "YOU ARE A TOTAL CLOWN KNOW YOUR PLACE BEFORE SPEAKING",
+    "SIT DOWN KID YOUR WHOLE ARGUMENT IS PURE TRASH",
+    "STOP BARKING LIKE A STRAY DOG NOBODY CARES ABOUT YOU",
+    "YOU EMBARRASS YOURSELF EVERY TIME YOU OPEN YOUR MOUTH",
+    "HOLD THIS L AND WALK AWAY QUIETLY FOOL",
+    "PURE JOKE ENERGY FROM START TO FINISH"
+]
+
+PUNJABI_RAIDS = [
+    "TERI MAA DI LUN VICH SOOTA PA DU MADARCHODA AUKAT CH REH",
+    "BHOSDIKEYA TERI BHEN DI LUN VICH RICKSHAW CHALA DU KUTTEYA",
+    "RANDI DE PUTTAR TERE PYO NU DASSDA AA TERI MAA DI LUN VICH DANDA",
+    "CHUTIYA SALEYA APNI AUKAT VEKH LE TERI MAA DI LUN CH PAANI PA DU",
+    "KUTTEY DE BACCHEYA TERA KHANDAN HI NALAYAK AA BHOSDIKEYA",
+    "TERI MAA DI LUN VICH GARM LOHA PA DU MADARCHOD SALEYA",
+    "BHOSDIKEYA BHAJJA YAHA TON TERI BHEN DI LUN VICH PHATAKA PA DU"
+]
+
+BENGALI_RAIDS = [
+    "TOR PAYA KHA BOKACHODA NIZZER AUKAT BUJHE KATHA BOL",
+    "MAGIR PO BESHYA TOR BUKER UPOR DIYE GARI CHALIYE DEBO",
+    "CHODNA TOR MUKH BANDH RAKH KUKURER MOTO GHEU GHEU KORIS NA",
+    "KHANKIR CHELE TOR BHAAT CHOR AUKAT SOBEI JANE",
+    "TOR GAND MERE LAL KORE DEBO BOKACHODA SALA",
+    "BESHYAR BACCHA BESHI PAKAMI KORIS NA EKHANE"
+]
+
 # Expanding dynamically to 1000+ heavy single-word variants
 GAALIS = []
 modifiers = ["VALA", "SALE", "KAMINEY", "BHADWE", "MADARCHOD", "GAANDU", "CHUTIYE", "HARAMKHOR", "KAMJAT", "CHHINAR"]
@@ -70,6 +98,9 @@ for g in RAW_BASE_GAALIS:
     for m in modifiers:
         GAALIS.append(f"{g} {m}")
         GAALIS.append(f"{m} {g}")
+GAALIS.extend(ENGLISH_RAIDS)
+GAALIS.extend(PUNJABI_RAIDS)
+GAALIS.extend(BENGALI_RAIDS)
 while len(GAALIS) < 1200:
     GAALIS.extend(RAW_BASE_GAALIS)
 
@@ -131,7 +162,7 @@ async def start_handler(event):
         f"  ??? **{OWNER_NAME.upper()} USERBOT HOSTING** ???\n"
         f"+----------------------+\n\n"
         f"? **HEY, I AM YOUR USERBOT MANAGER!**\n"
-        f"?? Single-Word Heavy Raids, Spam & Custom Advanced Auto-Reacts loaded.\n\n"
+        f"?? Single-Word Heavy Raids & Custom Advanced Auto-Reacts loaded.\n\n"
         f"?? **Click below to host or view commands:**"
     )
     buttons = [
@@ -168,13 +199,14 @@ async def help_cb(event):
         "• `.spam [count] [text]` - Normal Spam\n"
         "• `.fastspam [count] [text]` - Fast Spam\n"
         "• `.flood [count] [text]` - Flood Spam\n"
+        "• `.engraid [count]` / `.praid [count]` / `.braid [count]` - English, Punjabi & Bengali Raids\n"
         "• `.araid [link/tag]` - One-Word Heavy Raid\n"
         "• `.saraid / .oaraid / .faraid / .earaid` - Variant Raids\n"
         "• `.ar [emoji]` - Self Auto-React (Stop: `.dar`)\n"
         "• `.uar` (Reply or `@username`) - Target User Auto-React with `??` (Stop: `.duar`)\n"
         "• `.rar [emojis...]` - All Chat Messages Auto-React (Stop: `.drar`)\n"
         "• `/welcome [text]` (Send with pic or reply to pic) - Set Welcome Pic & Msg\n"
-        "• `.stop` / `.stopall` - Stop Active Raids & Spams\n\n"
+        "• `.stop` / `.stopall` - Stop Active Raids\n\n"
         "? Speed: **Single-Word Heavy Insults, Unlimited Continuous Mode**"
     )
     await event.respond(help_msg)
@@ -226,7 +258,7 @@ async def host_login_cb(event):
 
         await conv.send_message(
             f"? **Hosted done successfully!**\n"
-            f"? Active commands loaded: `.raid`, `.oneraid`, `.rraid`, `.drraid`, `.spam`, `.fastspam`, `.flood`, `.araid`, `.ar`, `.dar`, `.uar`, `.duar`, `.rar`, `.drar`, `/welcome`, `.stopall`\n"
+            f"? Active commands loaded: `.raid`, `.oneraid`, `.rraid`, `.drraid`, `.spam`, `.fastspam`, `.flood`, `.engraid`, `.praid`, `.braid`, `.araid`, `.ar`, `.dar`, `.uar`, `.duar`, `.rar`, `.drar`, `/welcome`, `.stopall`\n"
             f"?? Logged in for: **{OWNER_NAME}**"
         )
 
@@ -487,6 +519,51 @@ async def start_userbot_session(session_string, owner_id):
         except Exception:
             pass
         task = asyncio.create_task(_basic_raid_worker(event.chat_id, event.reply_to_msg_id, count, single_only=(cmd == "oneraid")))
+        active_raid_tasks[event.chat_id] = task
+
+    # 7. LANGUAGE RAIDS (.engraid / .praid / .braid)
+    async def _multi_lang_raid_worker(target_chat, reply_to, count, pool):
+        try:
+            for _ in range(count):
+                if target_chat not in active_raids:
+                    break
+                msg = random.choice(pool)
+                try:
+                    if reply_to:
+                        await ubot.send_message(target_chat, msg, reply_to=reply_to)
+                    else:
+                        await ubot.send_message(target_chat, msg)
+                except FloodWaitError as f:
+                    await asyncio.sleep(f.seconds + 0.5)
+                except Exception:
+                    break
+                await asyncio.sleep(0.2)
+        finally:
+            active_raids.discard(target_chat)
+            active_raid_tasks.pop(target_chat, None)
+
+    @ubot.on(events.NewMessage(pattern=r'^\.(engraid|praid|braid)\b', outgoing=True))
+    async def multi_lang_raid_handler(event):
+        cmd = event.pattern_match.group(1)
+        parts = event.raw_text.split(maxsplit=1)
+        count = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 15
+        count = max(1, min(count, 300))
+
+        pools = {
+            "engraid": ENGLISH_RAIDS,
+            "praid": PUNJABI_RAIDS,
+            "braid": BENGALI_RAIDS,
+        }
+        pool = pools[cmd]
+
+        if event.chat_id in active_raid_tasks:
+            active_raid_tasks[event.chat_id].cancel()
+        active_raids.add(event.chat_id)
+        try:
+            await event.delete()
+        except Exception:
+            pass
+        task = asyncio.create_task(_multi_lang_raid_worker(event.chat_id, event.reply_to_msg_id, count, pool))
         active_raid_tasks[event.chat_id] = task
 
     # Background Continuous/Unlimited Raid Worker Loop with Single-Word Insults
