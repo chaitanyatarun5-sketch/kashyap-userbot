@@ -1,4 +1,1 @@
-pyrogram
-TgCrypto
-Flask
 telethon
