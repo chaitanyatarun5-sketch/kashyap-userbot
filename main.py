@@ -1796,7 +1796,21 @@ def _run_bot_with_recovery():
             logger.warning("Transient failure detected; retrying in %ss...", retry_delay)
             time.sleep(retry_delay)
             retry_delay = min(retry_delay * 2, 60)
+from pyrogram import idle
 
+async def main():
+    await app.start()
+    logger.info("VOLT Main Bot started successfully.")
+    await idle()
+    try:
+        for uid, h_client in list(HOSTED_CLIENTS.items()):
+            try:
+                await h_client.stop()
+            except Exception:
+                pass
+        HOSTED_CLIENTS.clear()
+    finally:
+        await app.stop()
 keep_alive()
 if __name__ == "__main__":
     loop = asyncio.new_event_loop()
