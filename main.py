@@ -13,8 +13,8 @@ def run_web():
 
 threading.Thread(target=run_web, daemon=True).start()
 # ==========================================
-# VOLT USERBOT & HOSTING BOT V2.0 (UPDATED)
-# OWNER: volt (5769074791)
+# VILLIAN USERBOT & HOSTING BOT V2.0 (UPDATED)
+# OWNER: kashayap (5769074791)
 # ==========================================
 
 import os
@@ -145,7 +145,7 @@ async def guide_cb(event):
 
 @bot.on(events.CallbackQuery(data=b'source'))
 async def source_cb(event):
-    await event.answer("Private Volt Userbot Source Code. Fully Optimized for Railway.", alert=True)
+    await event.answer("Private VILLIAN Userbot Source Code. Fully Optimized for Railway.", alert=True)
 
 @bot.on(events.CallbackQuery(data=b'help_cmd'))
 async def help_cb(event):
