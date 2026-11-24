@@ -1,3 +1,17 @@
+import os, threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
+class H(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200); self.end_headers()
+        self.wfile.write(b"Bot is Live!")
+    def log_message(self, *a): pass
+
+def run_web():
+    port = int(os.environ.get("PORT", 10000))
+    HTTPServer(("0.0.0.0", port), H).serve_forever()
+
+threading.Thread(target=run_web, daemon=True).start()
 # ==========================================
 # VOLT USERBOT & HOSTING BOT V2.0 (UPDATED)
 # OWNER: volt (5769074791)
