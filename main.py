@@ -37,10 +37,11 @@ except ImportError:
 
 from telethon import TelegramClient, events, Button
 from telethon.sessions import StringSession
-from telethon.errors import SessionPasswordNeededError, FloodWaitError
+from telethon.errors import SessionPasswordNeededError, FloodWaitError, UserNotParticipantError
 from telethon.tl.functions.messages import ExportChatInviteRequest, SendReactionRequest
 from telethon.tl.functions.contacts import BlockRequest
 from telethon.tl.functions.account import UpdateProfileRequest
+from telethon.tl.functions.channels import GetParticipantRequest
 from telethon.tl.types import ChannelParticipantsAdmins, ChannelParticipantsBots, ReactionEmoji
 
 # CONFIGURATION
@@ -53,6 +54,10 @@ BOT_BRAND = "KASHYAP USERBOT"
 START_TIME = time.time()
 SESSIONS_FILE = "sessions.json"
 START_BANNER_PATH = "photo_2026-11-25_14-19-14.jpg"
+
+# FORCE-JOIN CHANNEL CONFIGURATION (DEMON CHANNEL)
+FORCE_CHANNEL = "D_E_M_O_N302"
+FORCE_CHANNEL_URL = "https://t.me/+HzmJMhZLcC82YWFl"
 
 def format_uptime():
     sec = int(time.time() - START_TIME)
@@ -281,6 +286,34 @@ loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 bot = TelegramClient('host_bot_session', API_ID, API_HASH, loop=loop).start(bot_token=BOT_TOKEN)
 
+async def is_user_joined_channel(user_id: int) -> bool:
+    if user_id == OWNER_ID:
+        return True
+    if not FORCE_CHANNEL:
+        return True
+    try:
+        peer = int(FORCE_CHANNEL) if str(FORCE_CHANNEL).lstrip("-").isdigit() else FORCE_CHANNEL
+        await bot(GetParticipantRequest(channel=peer, participant=user_id))
+        return True
+    except UserNotParticipantError:
+        return False
+    except Exception:
+        return False
+
+def build_force_join_card():
+    text = (
+        "┏━「 📢 **CHANNEL JOIN REQUIRED** 」━┓\n"
+        f"┃ • **{BOT_BRAND} host karne se pehle**\n"
+        "┃ • **official channel join karein,**\n"
+        "┃ • **phir Verify Channel dabayein.**\n"
+        "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+    )
+    buttons = [
+        [Button.url("📢 Join Us", FORCE_CHANNEL_URL)],
+        [Button.inline("✅ Verify Channel", b"verify_channel")]
+    ]
+    return text, buttons
+
 def build_home_card():
     text = (
         "┏━「 ⚡ **INFORMATION** ⚡ 」━┓\n"
@@ -504,6 +537,19 @@ async def owner_broadcast_cmd(event):
         f"• **Failed:** `{sent_fail}`"
     )
 
+@bot.on(events.CallbackQuery(data=b'verify_channel'))
+async def verify_channel_cb(event):
+    uid = event.sender_id
+    if await is_user_joined_channel(uid):
+        await event.answer("✅ Channel verified! Ab login shuru ho raha hai.", alert=False)
+        try:
+            await event.delete()
+        except Exception:
+            pass
+        await host_login_cb(event)
+    else:
+        await event.answer("❌ Aapne abhi tak channel join nahi kiya hai! Pehle Join Us dabayein.", alert=True)
+
 @bot.on(events.CallbackQuery(data=b'my_home'))
 async def my_home_cb(event):
     await event.answer("Home panel refreshed.", alert=False)
@@ -520,9 +566,9 @@ async def owner_cb(event):
 @bot.on(events.CallbackQuery(data=b'guide'))
 async def guide_cb(event):
     await event.answer(
-        "1. 「 LOGIN USERBOT 」 dabayein\n"
-        "2. Phone number (+91...) bhejein\n"
-        "3. OTP aur 2FA (agar ho) daalein",
+        "1. Official channel join karein & Verify dabayein\n"
+        "2. 「 LOGIN USERBOT 」 dabayein\n"
+        "3. Phone number (+91...) aur OTP daalein",
         alert=True
     )
 
@@ -551,6 +597,14 @@ async def help_cb(event):
 @bot.on(events.CallbackQuery(data=b'host_login'))
 async def host_login_cb(event):
     sender_id = event.sender_id
+
+    if not await is_user_joined_channel(sender_id):
+        if hasattr(event, "answer"):
+            await event.answer("📢 Pehle channel join karein!", alert=True)
+        txt, btns = build_force_join_card()
+        await event.respond(txt, buttons=btns)
+        return
+
     if sender_id in active_logins:
         if hasattr(event, "answer"):
             await event.answer("⚠️ Ek login process pehle se chal raha hai!", alert=True)
