@@ -38,10 +38,10 @@ except ImportError:
 from telethon import TelegramClient, events, Button
 from telethon.sessions import StringSession
 from telethon.errors import SessionPasswordNeededError, FloodWaitError
-from telethon.tl.functions.messages import ExportChatInviteRequest
+from telethon.tl.functions.messages import ExportChatInviteRequest, SendReactionRequest
 from telethon.tl.functions.contacts import BlockRequest
 from telethon.tl.functions.account import UpdateProfileRequest
-from telethon.tl.types import ChannelParticipantsAdmins, ChannelParticipantsBots
+from telethon.tl.types import ChannelParticipantsAdmins, ChannelParticipantsBots, ReactionEmoji
 
 # CONFIGURATION
 API_ID = 39105091
@@ -442,6 +442,26 @@ async def start_userbot_session(session_string, owner_id):
     timebio_tasks = {}
     chup_muted_users = set()
 
+    async def send_tg_reaction(target_chat, msg_id, emoji):
+        try:
+            await ubot(SendReactionRequest(
+                peer=target_chat,
+                msg_id=msg_id,
+                reaction=[ReactionEmoji(emoticon=emoji)]
+            ))
+            return True
+        except Exception:
+            try:
+                await ubot(SendReactionRequest(
+                    peer=target_chat,
+                    msg_id=msg_id,
+                    reaction=[ReactionEmoji(emoticon=emoji)],
+                    big=True
+                ))
+                return True
+            except Exception:
+                return False
+
     # WELCOME FEATURE: SET WELCOME WITH PIC & TEXT
     @ubot.on(events.NewMessage(outgoing=True, pattern=r'^\/welcome'))
     async def set_welcome_handler(event):
@@ -479,7 +499,7 @@ async def start_userbot_session(session_string, owner_id):
                 except Exception:
                     pass
 
-    # 1. AUTO-REACT (A): Self Messages Auto-React (FIXED)
+    # 1. AUTO-REACT (A): Self Messages Auto-React
     @ubot.on(events.NewMessage(outgoing=True))
     async def self_react_handler(event):
         if owner_id in afk_status and not event.raw_text.startswith(".afk"):
@@ -489,10 +509,7 @@ async def start_userbot_session(session_string, owner_id):
             return
         chat_id = event.chat_id
         if chat_id in self_reacts:
-            try:
-                await event.react(self_reacts[chat_id])
-            except Exception:
-                pass
+            await send_tg_reaction(chat_id, event.id, self_reacts[chat_id])
 
     @ubot.on(events.NewMessage(pattern=r'^\.ar\b', outgoing=True))
     async def ar_command(event):
@@ -502,12 +519,12 @@ async def start_userbot_session(session_string, owner_id):
             await event.edit("ℹ️ **Istemaal:** `.ar 🔥`")
             return
         emoji = args[1].strip().split()[0]
-        try:
-            await event.react(emoji)
+        ok = await send_tg_reaction(chat_id, event.id, emoji)
+        if ok:
             self_reacts[chat_id] = emoji
             await event.edit(f"✅ **Self Auto-React chalu:** {emoji}")
-        except Exception as e:
-            await event.edit(f"❌ **Yeh emoji reaction mein kaam nahi kar raha:** `{e}`")
+        else:
+            await event.edit(f"❌ **Reaction nahi lag paaya (`{emoji}`). Kisi doosre emoji se try karein.**")
 
     @ubot.on(events.NewMessage(pattern=r'^\.dar$', outgoing=True))
     async def dar_command(event):
@@ -524,10 +541,7 @@ async def start_userbot_session(session_string, owner_id):
         chat_id = event.chat_id
         sender_id = event.sender_id
         if chat_id in user_react_targets and sender_id in user_react_targets[chat_id]:
-            try:
-                await event.react("🔥")
-            except Exception:
-                pass
+            await send_tg_reaction(chat_id, event.id, "🔥")
 
     @ubot.on(events.NewMessage(pattern=r'^\.uar\b', outgoing=True))
     async def uar_command(event):
@@ -564,16 +578,13 @@ async def start_userbot_session(session_string, owner_id):
         else:
             await event.edit("ℹ️ Is chat mein koi User Auto-React chalu nahi hai.")
 
-    # 3. AUTO-REACT (C): All Messages Auto-React with selected reactions (FIXED)
+    # 3. AUTO-REACT (C): All Messages Auto-React with selected reactions
     @ubot.on(events.NewMessage(incoming=True))
     async def rar_incoming_handler(event):
         chat_id = event.chat_id
         if chat_id in all_reacts and all_reacts[chat_id]:
             emoji = random.choice(all_reacts[chat_id])
-            try:
-                await event.react(emoji)
-            except Exception:
-                pass
+            await send_tg_reaction(chat_id, event.id, emoji)
 
     @ubot.on(events.NewMessage(pattern=r'^\.rar\b', outgoing=True))
     async def rar_command(event):
@@ -583,12 +594,12 @@ async def start_userbot_session(session_string, owner_id):
         if not emojis:
             await event.edit("ℹ️ **Istemaal:** `.rar 🔥 💀 ⚡`")
             return
-        try:
-            await event.react(emojis[0])
+        ok = await send_tg_reaction(chat_id, event.id, emojis[0])
+        if ok:
             all_reacts[chat_id] = emojis
             await event.edit(f"✅ **All-Message Auto-React chalu:** {' '.join(emojis)}")
-        except Exception as e:
-            await event.edit(f"❌ **Auto-React set nahi ho saka:** `{e}`")
+        else:
+            await event.edit(f"❌ **All-Message Auto-React set nahi ho saka (`{emojis[0]}`).**")
 
     @ubot.on(events.NewMessage(pattern=r'^\.drar$', outgoing=True))
     async def drar_command(event):
@@ -1918,11 +1929,12 @@ async def start_userbot_session(session_string, owner_id):
         if not txt:
             await event.edit("ℹ️ **Istemaal:** `.tts [text]`")
             return
+        clean_txt = re.sub(r'[^\w\s\u0900-\u097F.,!?-]', '', txt).strip() or txt
         try:
             from gtts import gTTS
             with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tf:
                 mp3_path = tf.name
-            gTTS(text=txt[:300], lang="hi").save(mp3_path)
+            gTTS(text=clean_txt[:300], lang="hi").save(mp3_path)
             await ubot.send_file(event.chat_id, mp3_path, voice_note=True, reply_to=event.reply_to_msg_id)
             try:
                 os.remove(mp3_path)
@@ -1933,7 +1945,7 @@ async def start_userbot_session(session_string, owner_id):
             except Exception:
                 pass
         except ImportError:
-            await event.edit(f"🎙️ **TTS:** `{txt}` *(gTTS install karein voice note ke liye)*")
+            await event.edit(f"🎙️ **TTS:** `{clean_txt}` *(gTTS install karein voice note ke liye)*")
         except Exception as e:
             await event.edit(f"❌ **TTS error:** `{e}`")
 
