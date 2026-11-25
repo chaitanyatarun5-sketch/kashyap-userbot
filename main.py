@@ -479,11 +479,14 @@ async def start_userbot_session(session_string, owner_id):
                 except Exception:
                     pass
 
-    # 1. AUTO-REACT (A): Self Messages Auto-React
+    # 1. AUTO-REACT (A): Self Messages Auto-React (FIXED)
     @ubot.on(events.NewMessage(outgoing=True))
     async def self_react_handler(event):
         if owner_id in afk_status and not event.raw_text.startswith(".afk"):
             afk_status.pop(owner_id, None)
+        raw = (event.raw_text or "").strip()
+        if raw.startswith(".") or raw.startswith("/"):
+            return
         chat_id = event.chat_id
         if chat_id in self_reacts:
             try:
@@ -493,14 +496,18 @@ async def start_userbot_session(session_string, owner_id):
 
     @ubot.on(events.NewMessage(pattern=r'^\.ar\b', outgoing=True))
     async def ar_command(event):
-        args = event.raw_text.split()
+        args = event.raw_text.split(maxsplit=1)
         chat_id = event.chat_id
-        if len(args) > 1:
-            emoji = args[1]
+        if len(args) < 2 or not args[1].strip():
+            await event.edit("ℹ️ **Istemaal:** `.ar 🔥`")
+            return
+        emoji = args[1].strip().split()[0]
+        try:
+            await event.react(emoji)
             self_reacts[chat_id] = emoji
-            await event.edit(f"✅ **Self Auto-React chalu:** `{emoji}`")
-        else:
-            await event.edit("ℹ️ **Istemaal:** `.ar [emoji]` (Jaise: `.ar 🔥`)")
+            await event.edit(f"✅ **Self Auto-React chalu:** {emoji}")
+        except Exception as e:
+            await event.edit(f"❌ **Yeh emoji reaction mein kaam nahi kar raha:** `{e}`")
 
     @ubot.on(events.NewMessage(pattern=r'^\.dar$', outgoing=True))
     async def dar_command(event):
@@ -557,7 +564,7 @@ async def start_userbot_session(session_string, owner_id):
         else:
             await event.edit("ℹ️ Is chat mein koi User Auto-React chalu nahi hai.")
 
-    # 3. AUTO-REACT (C): All Messages Auto-React with selected reactions
+    # 3. AUTO-REACT (C): All Messages Auto-React with selected reactions (FIXED)
     @ubot.on(events.NewMessage(incoming=True))
     async def rar_incoming_handler(event):
         chat_id = event.chat_id
@@ -572,12 +579,16 @@ async def start_userbot_session(session_string, owner_id):
     async def rar_command(event):
         args = event.raw_text.split()
         chat_id = event.chat_id
-        emojis = args[1:]
+        emojis = [e.strip() for e in args[1:] if e.strip()]
         if not emojis:
             await event.edit("ℹ️ **Istemaal:** `.rar 🔥 💀 ⚡`")
             return
-        all_reacts[chat_id] = emojis
-        await event.edit(f"✅ **All-Message Auto-React chalu:** `{' '.join(emojis)}`")
+        try:
+            await event.react(emojis[0])
+            all_reacts[chat_id] = emojis
+            await event.edit(f"✅ **All-Message Auto-React chalu:** {' '.join(emojis)}")
+        except Exception as e:
+            await event.edit(f"❌ **Auto-React set nahi ho saka:** `{e}`")
 
     @ubot.on(events.NewMessage(pattern=r'^\.drar$', outgoing=True))
     async def drar_command(event):
@@ -1921,8 +1932,10 @@ async def start_userbot_session(session_string, owner_id):
                 await event.delete()
             except Exception:
                 pass
+        except ImportError:
+            await event.edit(f"🎙️ **TTS:** `{txt}` *(gTTS install karein voice note ke liye)*")
         except Exception as e:
-            await event.edit(f"🎙️ **TTS (`gTTS` optional):** `{txt}`\n⚠️ `{e}`")
+            await event.edit(f"❌ **TTS error:** `{e}`")
 
     @ubot.on(events.NewMessage(pattern=r'^\.auto\b', outgoing=True))
     async def auto_smart_link_cmd(event):
@@ -2102,5 +2115,3 @@ if __name__ == '__main__':
             pass
     print(f"{BOT_BRAND} started successfully for {OWNER_NAME}. Ready for connections!")
     bot.run_until_disconnected()
-
-
