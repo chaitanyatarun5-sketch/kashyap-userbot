@@ -78,8 +78,9 @@ STATIC_COMMANDS_TEXT = (
     "  `.mixraid [1-50]` • `.tagraid [1-50]` • `.capsraid [1-50]` • `.slowraid [1-50]`\n"
     "  `.badaid [count]` • `.saraid2 [count]` • `.ultraid [count]`\n"
     "  `.auto [link] [count]` • `.chup` • `.bol`\n\n"
-    "▸ **HACK & ANIMATION**\n"
+    "▸ **HACK & ANIMATION (50s HACKS INCLUDED)**\n"
     "  `.hack` • `.matrix` • `.scan`\n"
+    "  `.netghost` • `.rootkit` • `.cryptohack` • `.zeroday`\n"
     "  `.bruteforce [1-50]` • `.packetflood [1-50]` • `.sysbreach [1-50]`\n"
     "  `.loading` • `.boom` • `.fbi`\n"
     "  `.pulse [1-50]` • `.countanim [1-50]` • `.glitch [1-50]`\n"
@@ -91,7 +92,8 @@ STATIC_COMMANDS_TEXT = (
     "  `.dmautopin on <t>` • `.dmautopin off <t>`\n"
     "  `.tagall [text]` • `.admins` • `.bots` • `.pingall`\n\n"
     "▸ **DM, REACT & CONTROL**\n"
-    "  `.dmblock on|off` • `.dmmute` • `.undmmute`\n"
+    "  `.dmblock on|off` • `.dmwelcome on|off|reset` • `.dmmute` • `.undmmute`\n"
+    "  `.say30 [text]` • `.stop30`\n"
     "  `.ar [emoji]` • `.dar` • `.uar` • `.duar` • `.rar [emojis...]` • `.drar`\n"
     "  `.stop` • `.stopall` • `.clear` • `.restart` • `.help`\n\n"
     "▸ **FUN, TEXT & UTILITY**\n"
@@ -264,10 +266,13 @@ user_react_targets = {}      # chat_id: set of user_ids (for .uar)
 all_reacts = {}              # chat_id: [emojis] (for .rar)
 chat_welcomes = {}           # chat_id: {'text': str, 'media': file}
 dm_block_enabled = {}        # owner_id: bool
+dm_welcome_enabled = {}      # owner_id: bool (True by default)
+dm_welcomed_users = {}       # owner_id: set of user_ids (1 baar welcome ke liye)
 dm_muted_users = {}          # owner_id: set of user_ids
 afk_status = {}              # owner_id: str (reason)
 autopin_chats = set()        # chat_id jahan group/chat auto-pin on hai
 dm_autopin_targets = set()   # user_id jahan DM auto-pin on hai
+interval_30m_tasks = {}      # (owner_id, chat_id): asyncio.Task
 
 # INITIALIZE BOT CLIENT (HOSTING PANEL)
 loop = asyncio.new_event_loop()
@@ -439,6 +444,8 @@ async def host_login_cb(event):
 async def start_userbot_session(session_string, owner_id):
     ubot = TelegramClient(StringSession(session_string), API_ID, API_HASH)
     dm_muted_users.setdefault(owner_id, set())
+    dm_welcome_enabled.setdefault(owner_id, True)
+    dm_welcomed_users.setdefault(owner_id, set())
     timebio_tasks = {}
     chup_muted_users = set()
 
@@ -922,9 +929,7 @@ async def start_userbot_session(session_string, owner_id):
             except Exception:
                 break
 
-    # 9. FANCY DM WELCOME + OFFLINE AUTO-REPLY + DM CONTROL + AFK
-    dm_welcomed_users = set()
-
+    # 9. DM GUARD (.dmblock / .dmwelcome / .dmmute) + 30-MIN AUTO SAY + AFK MENTION REPLY
     @ubot.on(events.NewMessage(pattern=r'^\.dmblock\b', outgoing=True))
     async def dmblock_cmd(event):
         parts = event.raw_text.split()
@@ -933,6 +938,22 @@ async def start_userbot_session(session_string, owner_id):
             return
         dm_block_enabled[owner_id] = (parts[1].lower() == "on")
         await event.edit(f"🛡️ **DM Auto-Block:** `{parts[1].upper()}`")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.dmwelcome\b', outgoing=True))
+    async def dmwelcome_cmd(event):
+        parts = event.raw_text.split()
+        if len(parts) < 2 or parts[1].lower() not in ("on", "off", "reset"):
+            cur = "ON" if dm_welcome_enabled.get(owner_id, True) else "OFF"
+            await event.edit(f"ℹ️ **Istemaal:** `.dmwelcome on` / `.dmwelcome off` / `.dmwelcome reset` *(Abhi: `{cur}`)*")
+            return
+        mode = parts[1].lower()
+        if mode == "reset":
+            dm_welcomed_users[owner_id].clear()
+            await event.edit("🔄 **DM Welcome list reset ho gayi hai (ab har user ko 1 baar welcome aayega).**")
+            return
+        state = mode == "on"
+        dm_welcome_enabled[owner_id] = state
+        await event.edit(f"💌 **DM Welcome Auto-Reply (1x per user):** `{'ON' if state else 'OFF'}`")
 
     @ubot.on(events.NewMessage(pattern=r'^\.dmmute$', outgoing=True))
     async def dmmute_cmd(event):
@@ -973,41 +994,14 @@ async def start_userbot_session(session_string, owner_id):
                 except Exception:
                     pass
                 return
-
-        if event.is_private and event.sender_id and event.sender_id != owner_id:
-            try:
-                me = await ubot.get_me()
-                owner_tag = f"@{me.username}" if getattr(me, "username", None) else (getattr(me, "first_name", None) or OWNER_NAME)
-            except Exception:
-                owner_tag = OWNER_NAME
-
-            is_afk = owner_id in afk_status
-            first_time_dm = event.sender_id not in dm_welcomed_users
-            dm_welcomed_users.add(event.sender_id)
-
-            lines = []
-            if first_time_dm:
-                lines.append(
-                    "╔════════════════════════════╗\n"
-                    "  ✦ 𝐇𝐄𝐘𝐘 𝐖𝐄𝐋𝐂𝐎𝐌𝐄 𝐓𝐎 𝐌𝐘 𝐃𝐌 ✦\n"
-                    "╚════════════════════════════╝\n"
-                    "✨ 𝐁𝐚𝐚𝐭 𝐤𝐚𝐫𝐧𝐞 𝐤𝐞 𝐥𝐢𝐲𝐞 𝐬𝐡𝐮𝐤𝐫𝐢𝐲𝐚 🫶🌸"
-                )
-            if is_afk:
-                reason = afk_status[owner_id]
-                lines.append(
-                    f"🌙 **{owner_tag}** 𝐚𝐛𝐡𝐢 𝐨𝐟𝐟𝐥𝐢𝐧𝐞 𝐡𝐚𝐢, 𝐛𝐚𝐚𝐝 𝐦𝐞𝐢𝐧 𝐚𝐚𝐩𝐤𝐞 𝐦𝐞𝐬𝐬𝐚𝐠𝐞 𝐤𝐚 𝐫𝐞𝐩𝐥𝐲 𝐤𝐚𝐫𝐞𝐧𝐠𝐞 💌✨\n"
-                    f"🫧 *Note:* `{reason}`"
-                )
-            elif not first_time_dm:
-                lines.append("✦ 𝐇𝐄𝐘𝐘 𝐖𝐄𝐋𝐂𝐎𝐌𝐄 𝐓𝐎 𝐌𝐘 𝐃𝐌 ✦ ✨🫶")
-
-            if lines:
-                try:
-                    await event.reply("\n\n".join(lines))
-                except Exception:
-                    pass
-            return
+            if dm_welcome_enabled.get(owner_id, True) and event.sender_id != OWNER_ID:
+                welcomed_set = dm_welcomed_users.setdefault(owner_id, set())
+                if event.sender_id not in welcomed_set:
+                    welcomed_set.add(event.sender_id)
+                    try:
+                        await event.reply("✦ 𝐇𝐄𝐘𝐘 𝐖𝐄𝐋𝐂𝐎𝐌𝐄 𝐓𝐎 𝐌𝐘 𝐃𝐌 ✦")
+                    except Exception:
+                        pass
 
         if owner_id in afk_status and event.mentioned:
             try:
@@ -1022,6 +1016,42 @@ async def start_userbot_session(session_string, owner_id):
             except Exception:
                 pass
 
+    @ubot.on(events.NewMessage(pattern=r'^\.say30\b', outgoing=True))
+    async def say30_cmd(event):
+        parts = event.raw_text.split(maxsplit=1)
+        msg_text = parts[1].strip() if len(parts) > 1 and parts[1].strip() else "⚡ Active hu!"
+        key = (owner_id, event.chat_id)
+
+        old_task = interval_30m_tasks.pop(key, None)
+        if old_task:
+            old_task.cancel()
+
+        async def _every_30_min():
+            try:
+                while True:
+                    await asyncio.sleep(1800)  # 30 minutes = 1800 seconds
+                    try:
+                        await ubot.send_message(event.chat_id, msg_text)
+                    except FloodWaitError as f:
+                        await asyncio.sleep(f.seconds + 1)
+                    except Exception:
+                        break
+            except asyncio.CancelledError:
+                pass
+
+        interval_30m_tasks[key] = asyncio.create_task(_every_30_min())
+        await event.edit(f"⏰ **Har 30 min baad bolna ON:** `{msg_text}` *(Band karne ke liye `.stop30`)*")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.stop30$', outgoing=True))
+    async def stop30_cmd(event):
+        key = (owner_id, event.chat_id)
+        task = interval_30m_tasks.pop(key, None)
+        if task:
+            task.cancel()
+            await event.edit("🛑 **Har 30 min waala auto-message band kar diya gaya hai.**")
+        else:
+            await event.edit("ℹ️ **Is chat mein koi 30-min timer nahi chal raha hai.**")
+
     @ubot.on(events.NewMessage(pattern=r'^\.afk\b', outgoing=True))
     async def afk_cmd(event):
         parts = event.raw_text.split(maxsplit=1)
@@ -1029,7 +1059,45 @@ async def start_userbot_session(session_string, owner_id):
         afk_status[owner_id] = reason
         await event.edit(f"🌙 **Offline Mode ON** ✨\n🫧 **Note:** `{reason}`")
 
-    # 10. HACK & ANIMATION COMMANDS (INCLUDING MAX-50 STEPS)
+    # 10. HACK & ANIMATION COMMANDS (INCLUDING 4x 50-SECOND HACKS)
+    @ubot.on(events.NewMessage(pattern=r'^\.(netghost|rootkit|cryptohack|zeroday)$', outgoing=True))
+    async def hack_50sec_cmd(event):
+        cmd = event.pattern_match.group(1)
+        total_steps = 50
+        for i in range(1, total_steps + 1):
+            pct = i * 2
+            bar_len = pct // 10
+            bar = "█" * bar_len + "░" * (10 - bar_len)
+            if cmd == "netghost":
+                detail = f"Ghost node hop `10.8.{i}.{(i*7)%254}` • Spoofing MAC"
+                icon = "👻"
+            elif cmd == "rootkit":
+                detail = f"Kernel module hook `sys_call_{i:02d}` • Ring-0 check"
+                icon = "🧬"
+            elif cmd == "cryptohack":
+                key_hex = f"{random.getrandbits(32):08x}"
+                detail = f"Keystream block `0x{key_hex}` • Entropy scan"
+                icon = "🔑"
+            else:
+                detail = f"ZeroDay vector `CVE-2026-{9000+i}` • Probe active"
+                icon = "⚡"
+
+            msg = (
+                f"{icon} **{cmd.upper()} SIMULATION [{i}/{total_steps}s]**\n"
+                f"`[{bar}] {pct}%`\n"
+                f"➤ {detail}"
+            )
+            try:
+                await event.edit(msg)
+                await asyncio.sleep(1.0)
+            except Exception:
+                break
+
+        try:
+            await event.edit(f"✅ **{cmd.upper()} SEQUENCE COMPLETE (50s)** — *Simulation finished.*")
+        except Exception:
+            pass
+
     @ubot.on(events.NewMessage(pattern=r'^\.hack$', outgoing=True))
     async def hack_cmd(event):
         steps = [
