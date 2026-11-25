@@ -2102,5 +2102,5 @@ if __name__ == '__main__':
             pass
     print(f"{BOT_BRAND} started successfully for {OWNER_NAME}. Ready for connections!")
     bot.run_until_disconnected()
-```[cite: 2, 3]
+
 
