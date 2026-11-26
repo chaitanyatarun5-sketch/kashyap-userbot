@@ -45,7 +45,7 @@ from telethon.errors import SessionPasswordNeededError, FloodWaitError, UserNotP
 from telethon.tl.functions.messages import ExportChatInviteRequest, SendReactionRequest
 from telethon.tl.functions.contacts import BlockRequest
 from telethon.tl.functions.account import UpdateProfileRequest
-from telethon.tl.functions.channels import GetParticipantRequest, EditTitleRequest, EditPhotoRequest
+from telethon.tl.functions.channels import GetParticipantRequest, EditTitleRequest, EditPhotoRequest, LeaveChannelRequest
 from telethon.tl.functions.photos import UploadProfilePhotoRequest, DeletePhotosRequest
 from telethon.tl.functions.users import GetFullUserRequest
 from telethon.tl.types import (
@@ -92,11 +92,12 @@ STATIC_COMMANDS_TEXT = (
     "▸ **RAID, TAG & ECHO**\n"
     "  `.raid [count]` • `.oneraid [count]` • `.rraid` • `.drraid`\n"
     "  `.spam [count] [text]` • `.fastspam [count] [text]` • `.flood [count] [text]`\n"
+    "  `.slowspam [count] [text]` • `.revspam [count] [text]`\n"
     "  `.engraid [count]` • `.praid [count]` • `.braid [count]`\n"
     "  `.araid` • `.saraid` • `.oaraid` • `.faraid` • `.earaid`\n"
     "  `.dmraid [count]` • `.mraid [count]` • `.delayraid [sec] [count]`\n"
     "  `.emoraid [count]` • `.emojispam [count] [emoji] [text]`\n"
-    "  `.mixraid [1-50]` • `.tagraid [1-50]` • `.capsraid [1-50]` • `.slowraid [1-50]`\n"
+    "  `.mixraid [1-300]` • `.tagraid [1-300]` • `.capsraid [1-300]` • `.slowraid [1-300]`\n"
     "  `.badaid [count]` • `.saraid2 [count]` • `.ultraid [count]`\n"
     "  `.onetagall [text]` • `.auto [link] [count]` • `.chup` • `.bol`\n"
     "  `.echo` • `.decho`\n\n"
@@ -109,45 +110,72 @@ STATIC_COMMANDS_TEXT = (
     "  `.fuck` • `.type [text]`\n\n"
     "▸ **GROUP, ADMIN, CLONE & AUTOPIN**\n"
     "  `.ban` • `.unban` • `.kick` • `.mute` • `.unmute`\n"
-    "  `.pin` • `.unpin` • `.del` • `.invite` • `.purge [count]`\n"
-    "  `.clone <target>` • `.rmclone` • `.nc <name>` • `.setpic`\n"
+    "  `.pin` • `.unpin` • `.del` • `.delme` • `.fwd` • `.invite` • `.purge [count]`\n"
+    "  `.clone <target>` • `.rmclone` • `.nc <name>` • `.setpic` • `.kickme`\n"
     "  `.autopin on <id>` • `.autopin off <id>`\n"
     "  `.dmautopin on <t>` • `.dmautopin off <t>`\n"
     "  `.tagall [text]` • `.admins` • `.bots` • `.pingall`\n\n"
     "▸ **DM, REACT & CONTROL**\n"
-    "  `.dmblock on|off` • `.dmwelcome on|off|reset` • `.dmmute` • `.undmmute`\n"
+    "  `.dmblock on|off` • `.dmwelcome on|off|reset` • `.dmcount` • `.resetdm`\n"
+    "  `.dmmute` • `.undmmute`\n"
     "  `.say30 [text]` • `.stop30`\n"
     "  `.ar [emoji]` • `.dar` • `.uar` • `.duar` • `.rar [emojis...]` • `.drar`\n"
     "  `.stop` • `.stopall` • `.clear` • `.wipe` • `.restart` • `.help`\n\n"
-    "▸ **FUN, TEXT & UTILITY**\n"
+    "▸ **FUN, TEXT & EXTRA UTILITY**\n"
     "  `.roast` • `.iq` • `.love` • `.toss` • `.dice` • `.coin` • `.rate [topic]`\n"
     "  `.calc [expr]` • `.calc2 [expr]` • `.mock [text]` • `.mock2 [text]`\n"
     "  `.reverse [text]` • `.clap [text]` • `.vapor [text]`\n"
     "  `.trim [text]` • `.caps [text]` • `.lower [text]` • `.title [text]`\n"
     "  `.ship` • `.slap` • `.hug` • `.8ball [question]` • `.fact` • `.shayari` • `.tts [text]`\n"
-    "  `.steal` • `.ghost [sec] [text]` • `.tginfo` • `.bio <text>` • `.name <first> | <last>`\n"
-    "  `.ping` • `.alive` • `.alive2` • `.id` • `.id2` • `.info` • `.info2`\n"
-    "  `.whois` • `.whois2` • `.chatinfo` • `.chatinfo2` • `.stats` • `.stats2`\n"
-    "  `.time` • `.date` • `.afk [reason]` • `.timebio on|off` • `.save` • `.save2`\n\n"
+    "  `.steal` • `.caption <text>` • `.ghost [sec] [text]` • `.tginfo`\n"
+    "  `.bio <text>` • `.name <first> | <last>`\n"
+    "  `.ping` • `.ping2` • `.uptime` • `.alive` • `.alive2` • `.id` • `.id2`\n"
+    "  `.info` • `.info2` • `.whois` • `.whois2` • `.chatinfo` • `.chatinfo2`\n"
+    "  `.stats` • `.stats2` • `.time` • `.date` • `.afk [reason]` • `.timebio on|off`\n"
+    "  `.save` • `.save2`\n\n"
     "✦ **POWERED BY » KASHYAP USERBOT** ✦"
 )
 
-# ONE-WORD HEAVY GAALI & INSULT DATABASE
+# ONE-WORD & TUKDA HEAVY GAALI DATABASE (.oneraid ke liye tukda lines)
+TUKDA_RAIDS = [
+    "CHAMAR HIJDE KE BACCHE TERI MAA JINDA KARR",
+    "TERI MAUSI CHODU KYA RE",
+    "TERI MAA KI GAMD MAST KILASTI HAI MERE LAMD KO DEKH KE",
+    "BAHAR NIKL RAND KE BACCHE TERI MAA KI CHOOT BACHAAKE RAKH TOO",
+    "TERI MAAA KA RAPE KAR DUNGA JINDA HO JAA TATTE TERI MAAA KI KALI GAMS TOD DUNGAA",
+    "MAAA KAA BHAODAA FARUGAA TURUR",
+    "TIERIR MIYAA KII BURR MEE LU",
+    "TERI BHN KI LIPS LAAL HAI",
+    "TERI MAAKA BOSHDA FAT GYAAA KYA NICEE UTH CHAL",
+    "TERIII MAA KII FUDII MARR DUGAA RANDII KEE B",
+    "TERI BHN KI CHUMMI MERE LAND PE AMST",
+    "UTH TERI BEHEN KA KAALA BOSHDA MRU",
+    "TERI MAAKA BOSHDA FAT GYAAA KYA NICEE UTH",
+    "TERI BHN KI CHUT RAGADNA MERE LAND PE",
+    "TIEIR BHENN KII BURR CHOGAAA",
+    "OYEE RANDII KE BACHEE",
+    "RE RANDI KE BACCHE UTH APNI MAAKO BACCHA",
+    "TERI MAA KI CHUT ME MEOW GHOP GHOP GHOP",
+    "MRA KAISE TU RANDIKE AULAAAD BACHA APNI MAA KA PHATA BHOSDA AB",
+    "TERI MAAA KA BHOSDA ME FLOOD AA GAYA",
+    "TIERI MOSII KII CHUTT ME AICDD DLAAA DUGA",
+]
+
 RAW_BASE_GAALIS = [
-    "MADARCHOD", "GAANDU", "CHUTIYA", "BHADWA", "RANDI",
-    "LUND", "HIJDA", "CHHAKKA", "SUAR", "KAMINEY",
-    "KANJAR", "HARAMKHOR", "BESHARM", "CHUTMARIKE", "LODU",
-    "CHHINAR", "KAMJAT", "BHAND", "TAPORI", "GADDAR",
+    "MADARCHOD", "GAANDU", "CHUTIYA", "BHADWA", "RANDI", "TERI MAA  KI CHUT FAAD DUNGA",
+    "LUND", "HIJDA", "CHHAKKA", "SUAR", "KAMINEY", "TCS KE CHOODE",
+    "KANJAR", "HARAMKHOR", "BESHARM", "CHUTMARIKE", "LODU", "DAICHOD",
+    "CHHINAR", "KAMJAT", "BHAND", "TAPORI", "GADDAR", "BHNCHOD",
     "LAVDE", "KUTTA", "BALLU", "DHAKKAN", "CHUTMARIKA",
     "BAYMAN", "NALAYAK", "ULRAG", "FARIA", "CHAMPAN",
-    "BEGHARAT", "KAMINE", "CHALBAZ", "KASAI", "GHATIYA"
+    "BEGHARAT", "KAMINE", "CHALBAZ", "KASAI", "GHATIYA", "TERI MAA RANDYY",
 ]
 
 SINGLE_GAALIS = [
-    "MADARCHOD", "BHOOTNIKE", "CHUTIYE", "GANDU", "RANDI",
-    "LODE", "BHOSDIKE", "LAWDE", "HIJRA", "MC", "BC",
-    "TERIMA", "CHUT", "HRAMKHOR", "NALAYAK", "BAKKANCHOD"
-]
+    "MADARCHOD", "BHOOTNIKE", "CHUTIYE", "GANDU", "RANDI", "RANDI FAD DU TRY",
+    "LODE", "BHOSDIKE", "LAWDE", "HIJRA", "MC", "BC", "MADARCHOD",
+    "TERIMA", "CHUT", "HRAMKHOR", "NALAYAK", "BAKKANCHOD",
+] + TUKDA_RAIDS
 
 ENGLISH_RAIDS = [
     "YOU ARE A TOTAL CLOWN KNOW YOUR PLACE BEFORE SPEAKING",
@@ -182,7 +210,7 @@ MULTI_LINE_RAIDS = [
     "SHOR KAM KAR AUR KAAM DEKH\nTERI HAR BAAT ME DAM NAHI\nNIKAL LE YAHA SE"
 ]
 
-SCREENSHOT_AND_EXTRA_RAIDS = [
+EXTRA_RAIDS = [
     "TERI VAHEN KE BHOSDIKE MEI BESAN KE LADDU",
     "ACE TERII MUMMY KE BOSHDE KI HADIYAA TOD DUNGAA",
     "TERI MAA KE SATH SUAR KA SEX KARWA DUNGAA EK SATH 6-6 BACHE DEGI 💰 🔥 😱",
@@ -213,7 +241,9 @@ SCREENSHOT_AND_EXTRA_RAIDS = [
     "BAKWAAS BAND KAR AUR APNA RASTA NAAP",
     "TERE JAISE LOG ROZ AATE HAIN AUR ROZ DHUL CHAAT TE HAIN",
     "AWAZ NEECHI RAKH AUR APNI AUKAT YAAD RAKH"
-]
+] + TUKDA_RAIDS
+
+SCREENSHOT_AND_EXTRA_RAIDS = EXTRA_RAIDS
 
 ROAST_LINES = [
     "Baatein aisi kar rahe ho jaise signal 1 bar pe atka ho.",
@@ -224,7 +254,7 @@ ROAST_LINES = [
 
 RAID_EMOJIS = ["💀", "🔥", "🤡", "⚡", "😈", "💣", "🧨", "👁️"]
 
-# Expanding dynamically to 1000+ heavy single-word variants
+# Expanding dynamically to 1000+ heavy raid variants
 GAALIS = []
 modifiers = ["VALA", "SALE", "KAMINEY", "BHADWE", "MADARCHOD", "GAANDU", "CHUTIYE", "HARAMKHOR", "KAMJAT", "CHHINAR"]
 for g in RAW_BASE_GAALIS:
@@ -235,9 +265,9 @@ for g in RAW_BASE_GAALIS:
 GAALIS.extend(ENGLISH_RAIDS)
 GAALIS.extend(PUNJABI_RAIDS)
 GAALIS.extend(BENGALI_RAIDS)
-GAALIS.extend(SCREENSHOT_AND_EXTRA_RAIDS)
+GAALIS.extend(EXTRA_RAIDS)
 while len(GAALIS) < 1200:
-    GAALIS.extend(RAW_BASE_GAALIS)
+    GAALIS.extend(EXTRA_RAIDS)
 
 EARAID_LIST = [
     "💀MADARCHOD", "🔥GAANDU", "🤡CHUTIYA", "⚡BHADWA", "😈RANDI",
@@ -320,6 +350,7 @@ chat_welcomes = {}           # chat_id: {'text': str, 'media': file}
 dm_block_enabled = {}        # owner_id: bool
 dm_welcome_enabled = {}      # owner_id: bool
 dm_welcomed_users = {}       # owner_id: set of user_ids
+dm_msg_counts = {}           # owner_id: {sender_id: int}
 dm_muted_users = {}          # owner_id: set of user_ids
 afk_status = {}              # owner_id: str (reason)
 autopin_chats = set()        # chat_id jahan group/chat auto-pin on hai
@@ -763,6 +794,7 @@ async def start_userbot_session(session_string, owner_id):
     dm_muted_users.setdefault(owner_id, set())
     dm_welcome_enabled.setdefault(owner_id, True)
     dm_welcomed_users.setdefault(owner_id, set())
+    dm_msg_counts.setdefault(owner_id, {})
     timebio_tasks = {}
     chup_muted_users = set()
 
@@ -1004,14 +1036,15 @@ async def start_userbot_session(session_string, owner_id):
             except Exception:
                 pass
 
-    # 5. SPAM / FASTSPAM / FLOOD
-    async def _spam_worker(target_chat, count, text, delay):
+    # 5. SPAM / FASTSPAM / FLOOD / SLOWSPAM / REVSPAM (LIMIT 300)
+    async def _spam_worker(target_chat, count, text, delay, reverse_text=False):
         try:
+            payload = text[::-1] if reverse_text else text
             for _ in range(count):
                 if target_chat not in active_raids:
                     break
                 try:
-                    await ubot.send_message(target_chat, text)
+                    await ubot.send_message(target_chat, payload)
                 except FloodWaitError as f:
                     await asyncio.sleep(f.seconds + 0.5)
                 except Exception:
@@ -1022,7 +1055,7 @@ async def start_userbot_session(session_string, owner_id):
             active_raids.discard(target_chat)
             active_raid_tasks.pop(target_chat, None)
 
-    @ubot.on(events.NewMessage(pattern=r'^\.(spam|fastspam|flood)\b', outgoing=True))
+    @ubot.on(events.NewMessage(pattern=r'^\.(spam|fastspam|flood|slowspam|revspam)\b', outgoing=True))
     async def spam_cmd_handler(event):
         cmd = event.pattern_match.group(1)
         parts = event.raw_text.split(maxsplit=2)
@@ -1031,7 +1064,14 @@ async def start_userbot_session(session_string, owner_id):
             return
         count = max(1, min(int(parts[1]), 300))
         text = parts[2]
-        delay = 0.05 if cmd == "fastspam" else (0.15 if cmd == "flood" else 0.25)
+        delay_map = {
+            "fastspam": 0.05,
+            "flood": 0.15,
+            "spam": 0.25,
+            "slowspam": 1.5,
+            "revspam": 0.2,
+        }
+        delay = delay_map.get(cmd, 0.25)
 
         if event.chat_id in active_raid_tasks:
             active_raid_tasks[event.chat_id].cancel()
@@ -1040,10 +1080,10 @@ async def start_userbot_session(session_string, owner_id):
             await event.delete()
         except Exception:
             pass
-        task = asyncio.create_task(_spam_worker(event.chat_id, count, text, delay))
+        task = asyncio.create_task(_spam_worker(event.chat_id, count, text, delay, reverse_text=(cmd == "revspam")))
         active_raid_tasks[event.chat_id] = task
 
-    # 6. RAID & ONERAID (.raid / .oneraid)
+    # 6. RAID & ONERAID (.raid / .oneraid — LIMIT 300)
     async def _basic_raid_worker(target_chat, reply_to, count, single_only=False):
         try:
             for _ in range(count):
@@ -1081,7 +1121,7 @@ async def start_userbot_session(session_string, owner_id):
         task = asyncio.create_task(_basic_raid_worker(event.chat_id, event.reply_to_msg_id, count, single_only=(cmd == "oneraid")))
         active_raid_tasks[event.chat_id] = task
 
-    # 7. LANGUAGE RAIDS (.engraid / .praid / .braid)
+    # 7. LANGUAGE RAIDS (.engraid / .praid / .braid — LIMIT 300)
     async def _multi_lang_raid_worker(target_chat, reply_to, count, pool):
         try:
             for _ in range(count):
@@ -1125,7 +1165,7 @@ async def start_userbot_session(session_string, owner_id):
             pass
         task = asyncio.create_task(_multi_lang_raid_worker(event.chat_id, event.reply_to_msg_id, count, pool))
         active_raid_tasks[event.chat_id] = task
-        # 8. STYLED, TAG & SPECIAL RAIDS (.araid, .saraid, .oaraid, .faraid, .earaid, .dmraid, .mraid, .delayraid, .emoraid, .emojispam, .mixraid, .tagraid, .capsraid, .slowraid, .badaid, .saraid2, .ultraid, .onetagall, .auto, .chup, .bol)
+        # 8. STYLED, TAG & SPECIAL RAIDS (.araid, .saraid, .oaraid, .faraid, .earaid, .dmraid, .mraid, .delayraid, .emoraid, .emojispam, .mixraid, .tagraid, .capsraid, .slowraid, .badaid, .saraid2, .ultraid, .onetagall, .auto, .chup, .bol — LIMIT 300)
     def _build_raid_payload(mode, event, custom_text=None):
         if custom_text:
             return custom_text
@@ -1185,7 +1225,7 @@ async def start_userbot_session(session_string, owner_id):
         cmd = event.pattern_match.group(1)
         parts = event.raw_text.split(maxsplit=1)
         default_cnt = 10 if cmd in ("mixraid", "tagraid", "capsraid", "slowraid") else 15
-        max_cnt = 50 if cmd in ("mixraid", "tagraid", "capsraid", "slowraid") else 300
+        max_cnt = 300
         count = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else default_cnt
         count = max(1, min(count, max_cnt))
         delay = 1.2 if cmd == "slowraid" else 0.22
@@ -1245,7 +1285,7 @@ async def start_userbot_session(session_string, owner_id):
     @ubot.on(events.NewMessage(pattern=r'^\.dmraid\b', outgoing=True))
     async def dmraid_handler(event):
         parts = event.raw_text.split(maxsplit=1)
-        count = max(1, min(int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 10, 100))
+        count = max(1, min(int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 10, 300))
         target_id = None
         if event.is_reply:
             rep = await event.get_reply_message()
@@ -1269,7 +1309,7 @@ async def start_userbot_session(session_string, owner_id):
 
     async def _onetagall_worker(target_chat, custom_text, delay=1.2):
         try:
-            async for user in ubot.iter_participants(target_chat, limit=100):
+            async for user in ubot.iter_participants(target_chat, limit=300):
                 if target_chat not in active_raids:
                     break
                 if getattr(user, "bot", False) or getattr(user, "deleted", False):
@@ -1323,7 +1363,7 @@ async def start_userbot_session(session_string, owner_id):
             await event.edit("ℹ️ **Istemaal:** `.auto [link] [count]`")
             return
         link = parts[1]
-        count = max(1, min(int(parts[2]), 100))
+        count = max(1, min(int(parts[2]), 300))
         if event.chat_id in active_raid_tasks:
             active_raid_tasks[event.chat_id].cancel()
         active_raids.add(event.chat_id)
@@ -1462,7 +1502,7 @@ async def start_userbot_session(session_string, owner_id):
             await asyncio.sleep(0.25)
         await msg.edit(full)
 
-    # 10. GROUP, ADMIN, CLONE, RENAME/PIC & AUTOPIN
+    # 10. GROUP, ADMIN, CLONE, RENAME/PIC, KICKME, DELME, FWD & AUTOPIN
     async def _target_entity_from_event(event):
         if event.is_reply:
             rep = await event.get_reply_message()
@@ -1539,6 +1579,47 @@ async def start_userbot_session(session_string, owner_id):
             await event.delete()
         except Exception:
             pass
+
+    @ubot.on(events.NewMessage(pattern=r'^\.delme$', outgoing=True))
+    async def delme_msg_handler(event):
+        try:
+            await event.delete()
+        except Exception:
+            pass
+        if event.is_reply:
+            rep = await event.get_reply_message()
+            if rep and rep.out:
+                try:
+                    await rep.delete()
+                except Exception:
+                    pass
+
+    @ubot.on(events.NewMessage(pattern=r'^\.fwd$', outgoing=True))
+    async def fwd_msg_handler(event):
+        if not event.is_reply:
+            await event.edit("ℹ️ **Kisi message par reply karke `.fwd` likhein.**")
+            return
+        rep = await event.get_reply_message()
+        try:
+            await ubot.forward_messages(event.chat_id, rep)
+            try:
+                await event.delete()
+            except Exception:
+                pass
+        except Exception as e:
+            await event.edit(f"❌ **Forward fail:** `{e}`")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.kickme$', outgoing=True))
+    async def kickme_handler(event):
+        if event.is_private:
+            await event.edit("ℹ️ **Group/channel mein `.kickme` chalayein.**")
+            return
+        await event.edit("👋 **Group se leave ho raha hoon...**")
+        try:
+            ent = await ubot.get_entity(event.chat_id)
+            await ubot(LeaveChannelRequest(channel=ent))
+        except Exception as e:
+            await event.edit(f"❌ **Leave fail:** `{e}`")
 
     @ubot.on(events.NewMessage(pattern=r'^\.invite$', outgoing=True))
     async def invite_link_handler(event):
@@ -1763,7 +1844,7 @@ async def start_userbot_session(session_string, owner_id):
             await ubot.send_message(event.chat_id, line)
             await asyncio.sleep(0.7)
 
-    # 11. DM, REACT, SAY30 & CONTROL
+    # 11. DM (FIRST MSG + EVERY 19TH MSG), REACT, SAY30 & CONTROL
     @ubot.on(events.NewMessage(pattern=r'^\.dmblock\s+(on|off)$', outgoing=True))
     async def dmblock_cmd(event):
         mode = event.pattern_match.group(1).lower()
@@ -1781,7 +1862,25 @@ async def start_userbot_session(session_string, owner_id):
             await event.edit("🛑 **DM Auto-Welcome `OFF`.**")
         else:
             dm_welcomed_users[owner_id] = set()
-            await event.edit("🔄 **DM Welcome list reset ho gayi.**")
+            dm_msg_counts[owner_id] = {}
+            await event.edit("🔄 **DM Welcome list aur message count reset ho gayi.**")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.dmcount$', outgoing=True))
+    async def dmcount_cmd(event):
+        if not event.is_private:
+            await event.edit("ℹ️ **DM chat mein `.dmcount` chalayein.**")
+            return
+        cnt = dm_msg_counts.setdefault(owner_id, {}).get(event.chat_id, 0)
+        await event.edit(f"💬 **Is DM user ke total messages:** `{cnt}`")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.resetdm$', outgoing=True))
+    async def resetdm_cmd(event):
+        if not event.is_private:
+            await event.edit("ℹ️ **DM chat mein `.resetdm` chalayein.**")
+            return
+        dm_msg_counts.setdefault(owner_id, {})[event.chat_id] = 0
+        dm_welcomed_users.setdefault(owner_id, set()).discard(event.chat_id)
+        await event.edit("🔄 **Is DM user ka counter aur welcome reset ho gaya.**")
 
     @ubot.on(events.NewMessage(pattern=r'^\.dmmute$', outgoing=True))
     async def dmmute_cmd(event):
@@ -1816,17 +1915,23 @@ async def start_userbot_session(session_string, owner_id):
             except Exception:
                 pass
             return
+
+        user_counts = dm_msg_counts.setdefault(owner_id, {})
+        current_count = user_counts.get(sid, 0) + 1
+        user_counts[sid] = current_count
+
         if owner_id in afk_status:
             try:
                 await event.reply(f"💤 **Main abhi AFK hoon:** `{afk_status[owner_id]}`")
             except Exception:
                 pass
+
         if dm_welcome_enabled.get(owner_id, True):
             seen = dm_welcomed_users.setdefault(owner_id, set())
-            if sid not in seen:
+            if sid not in seen or current_count % 19 == 0:
                 seen.add(sid)
                 try:
-                    await event.reply(f"👋 **Hello! Main {OWNER_NAME} ke {BOT_BRAND} se baat kar raha hoon.**")
+                    await event.reply("wolcome to my dm kaise ho")
                 except Exception:
                     pass
 
@@ -2056,6 +2161,26 @@ async def start_userbot_session(session_string, owner_id):
                 except Exception:
                     pass
 
+    @ubot.on(events.NewMessage(pattern=r'^\.caption\b', outgoing=True))
+    async def set_caption_cmd(event):
+        if not event.is_reply:
+            await event.edit("ℹ️ **Media message par reply karke `.caption <text>` likhein.**")
+            return
+        rep = await event.get_reply_message()
+        if not rep or not rep.media:
+            await event.edit("❌ **Replied message mein koi media nahi hai.**")
+            return
+        parts = event.raw_text.split(maxsplit=1)
+        new_cap = parts[1].strip() if len(parts) > 1 and parts[1].strip() else ""
+        try:
+            await ubot.send_file(event.chat_id, rep.media, caption=new_cap)
+            try:
+                await event.delete()
+            except Exception:
+                pass
+        except Exception as e:
+            await event.edit(f"❌ **Caption send fail:** `{e}`")
+
     @ubot.on(events.NewMessage(pattern=r'^\.ghost\b', outgoing=True))
     async def ghost_msg_cmd(event):
         parts = event.raw_text.split(maxsplit=2)
@@ -2125,13 +2250,24 @@ async def start_userbot_session(session_string, owner_id):
         except Exception as e:
             await event.edit(f"❌ **Name fail:** `{e}`")
 
-    # 13. PING, ALIVE, ID, INFO, WHOIS, CHATINFO, STATS, TIME, DATE, AFK, TIMEBIO, SAVE
+    # 13. PING, PING2, UPTIME, ALIVE, ID, INFO, WHOIS, CHATINFO, STATS, TIME, DATE, AFK, TIMEBIO, SAVE
     @ubot.on(events.NewMessage(pattern=r'^\.ping$', outgoing=True))
     async def ping_cmd(event):
         t0 = time.time()
         msg = await event.edit("🏓 **Pinging...**")
         ms = int((time.time() - t0) * 1000)
         await msg.edit(f"🏓 **Pong!** `{ms}ms` | **Uptime:** `{format_uptime()}`")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.ping2$', outgoing=True))
+    async def ping2_cmd(event):
+        t0 = time.time()
+        msg = await event.edit("⚡ **Checking speed...**")
+        ms = int((time.time() - t0) * 1000)
+        await msg.edit(f"⚡ **Speed:** `{ms}ms` • **Uptime:** `{format_uptime()}`")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.uptime$', outgoing=True))
+    async def uptime_cmd(event):
+        await event.edit(f"⏱️ **Uptime:** `{format_uptime()}`")
 
     @ubot.on(events.NewMessage(pattern=r'^\.(alive|alive2)$', outgoing=True))
     async def alive_cmd(event):
