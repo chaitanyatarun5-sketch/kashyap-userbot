@@ -1030,8 +1030,7 @@ async def start_userbot_session(session_string, owner_id):
             pass
         task = asyncio.create_task(_multi_lang_raid_worker(event.chat_id, event.reply_to_msg_id, count, pool))
         active_raid_tasks[event.chat_id] = task
-
-    # 8. STYLED & SPECIAL RAIDS (.araid, .saraid, .oaraid, .faraid, .earaid, .dmraid, .mraid, .delayraid, .emoraid, .emojispam, .mixraid, .tagraid, .capsraid, .slowraid, .badaid, .saraid2, .ultraid, .auto, .chup, .bol)
+        # 8. STYLED & SPECIAL RAIDS (.araid, .saraid, .oaraid, .faraid, .earaid, .dmraid, .mraid, .delayraid, .emoraid, .emojispam, .mixraid, .tagraid, .capsraid, .slowraid, .badaid, .saraid2, .ultraid, .auto, .chup, .bol)
     def _build_raid_payload(mode, event, custom_text=None):
         if custom_text:
             return custom_text
@@ -1429,10 +1428,6 @@ async def start_userbot_session(session_string, owner_id):
                 pass
 
     @ubot.on(events.NewMessage(pattern=r'^\.invite$', outgoing=True))
-    async def invite_cmd(event):
-        try:
-            res = await ubot(ExportChatInviteRequest(peer=event.chat_id))
-            @ubot.on(events.NewMessage(pattern=r'^\.invite$', outgoing=True))
     async def invite_cmd(event):
         try:
             res = await ubot(ExportChatInviteRequest(peer=event.chat_id))
@@ -1966,14 +1961,14 @@ async def _resume_all_saved_sessions():
             except Exception as e:
                 print(f"Resume error for {uid_str}: {e}", flush=True)
 
-async def main():
+async def _run_bot_main():
     await bot.start(bot_token=BOT_TOKEN)
     print(f"[{BOT_BRAND}] Hosting bot running...", flush=True)
-    asyncio.create_task(_resume_all_saved_sessions())
+    loop.create_task(_resume_all_saved_sessions())
     await bot.run_until_disconnected()
 
 try:
-    loop.run_until_complete(main())
+    loop.run_until_complete(_run_bot_main())
 finally:
     pending = asyncio.all_tasks(loop)
     for task in pending:
