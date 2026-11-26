@@ -1922,7 +1922,7 @@ async def start_userbot_session(session_string, owner_id):
 
         if owner_id in afk_status:
             try:
-                await event.reply(f"💤 **Main abhi AFK hoon:** `{afk_status[owner_id]}`")
+                await event.reply(f"💤 **@USER ABHI OFFLINE HAI🥀 AAYENGE TO AAP KE MSG KA REPLY JARUR DENGE DM KR NE KE LIYE DHYANWAD❤️☺️:** `{afk_status[owner_id]}`")
             except Exception:
                 pass
 
@@ -1931,7 +1931,7 @@ async def start_userbot_session(session_string, owner_id):
             if sid not in seen or current_count % 19 == 0:
                 seen.add(sid)
                 try:
-                    await event.reply("wolcome to my dm kaise ho")
+                    await event.reply("𝓗𝓲, 𝓫𝓪𝓽𝓲𝔂𝓮 !! 𝓴𝔂𝓪 𝓼𝓬𝓮𝓷𝓮 𝓱𝓪𝓲? 𝓑𝓲𝓷𝓪 𝓴𝓪𝓪𝓶 𝓴𝓮 𝓽𝓸 𝓴𝓸𝓲 𝔂𝓪𝓪𝓭 𝓷𝓪𝓱𝓲 𝓴𝓪𝓻𝓽𝓪 🙃")
                 except Exception:
                     pass
 
