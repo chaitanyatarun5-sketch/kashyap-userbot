@@ -39,6 +39,12 @@ except ImportError:
     os.system(f"{sys.executable} -m pip install telethon")
     import telethon
 
+try:
+    from gtts import gTTS
+except ImportError:
+    os.system(f"{sys.executable} -m pip install gTTS")
+    from gtts import gTTS
+
 from telethon import TelegramClient, events, Button
 from telethon.sessions import StringSession
 from telethon.errors import SessionPasswordNeededError, FloodWaitError, UserNotParticipantError
@@ -99,8 +105,9 @@ STATIC_COMMANDS_TEXT = (
     "  `.emoraid [count]` • `.emojispam [count] [emoji] [text]`\n"
     "  `.mixraid [1-300]` • `.tagraid [1-300]` • `.capsraid [1-300]` • `.slowraid [1-300]`\n"
     "  `.badaid [count]` • `.saraid2 [count]` • `.ultraid [count]`\n"
+    "  `.ssraid [count]` • `.extraraid [count]` • `.ttsraid [5-6] [text]`\n"
     "  `.onetagall [text]` • `.auto [link] [count]` • `.chup` • `.bol`\n"
-    "  `.echo` • `.decho`\n\n"
+    "  `.echo` • `.decho` • `.auracommand`\n\n"
     "▸ **HACK & ANIMATION (50s HACKS INCLUDED)**\n"
     "  `.hack` • `.matrix` • `.scan`\n"
     "  `.netghost` • `.rootkit` • `.cryptohack` • `.zeroday`\n"
@@ -133,6 +140,26 @@ STATIC_COMMANDS_TEXT = (
     "  `.info` • `.info2` • `.whois` • `.whois2` • `.chatinfo` • `.chatinfo2`\n"
     "  `.stats` • `.stats2` • `.time` • `.date` • `.afk [reason]` • `.timebio on|off`\n"
     "  `.save` • `.save2`\n\n"
+    "✦ **POWERED BY » KASHYAP USERBOT** ✦"
+)
+
+AURA_COMMAND_TEXT = (
+    "╔═════════════════════════════════════════════════╗\n"
+    "║         ✨ **KASHYAP AURA COMMANDS** ✨          ║\n"
+    "╚═════════════════════════════════════════════════╝\n\n"
+    "⚡ **AURA RAID PACK (MAX LIMIT: 300)**\n"
+    "  • `.raid [1-300]` • `.oneraid [1-300]`\n"
+    "  • `.engraid [1-300]` • `.praid [1-300]` • `.braid [1-300]`\n"
+    "  • `.araid [1-300]` • `.saraid [1-300]` • `.oaraid [1-300]` • `.faraid [1-300]`\n"
+    "  • `.earaid [1-300]` • `.mraid [1-300]` • `.emoraid [1-300]`\n"
+    "  • `.mixraid [1-300]` • `.tagraid [1-300]` • `.capsraid [1-300]` • `.slowraid [1-300]`\n"
+    "  • `.badaid [1-300]` • `.saraid2 [1-300]` • `.ultraid [1-300]`\n"
+    "  • `.ssraid [1-300]` • `.extraraid [1-300]`\n"
+    "  • `.ttsraid [5-6] [text]` (5-6 voice notes via gTTS)\n\n"
+    "💬 **AURA DM & CONTROL**\n"
+    "  • Har 19th incoming DM par: `wolcome to my dm kaise ho`\n"
+    "  • `.rraid` / `.drraid` • `.echo` / `.decho` • `.chup` / `.bol`\n"
+    "  • `.stop` • `.stopall` • `.wipe` • `.restart` • `.help`\n\n"
     "✦ **POWERED BY » KASHYAP USERBOT** ✦"
 )
 
@@ -786,9 +813,7 @@ async def host_login_cb(event):
         )
     finally:
         active_logins.discard(sender_id)
-
-
-# DYNAMIC USERBOT SESSION RUNNER
+        # DYNAMIC USERBOT SESSION RUNNER
 async def start_userbot_session(session_string, owner_id):
     ubot = TelegramClient(StringSession(session_string), API_ID, API_HASH)
     dm_muted_users.setdefault(owner_id, set())
@@ -1165,7 +1190,8 @@ async def start_userbot_session(session_string, owner_id):
             pass
         task = asyncio.create_task(_multi_lang_raid_worker(event.chat_id, event.reply_to_msg_id, count, pool))
         active_raid_tasks[event.chat_id] = task
-        # 8. STYLED, TAG & SPECIAL RAIDS (.araid, .saraid, .oaraid, .faraid, .earaid, .dmraid, .mraid, .delayraid, .emoraid, .emojispam, .mixraid, .tagraid, .capsraid, .slowraid, .badaid, .saraid2, .ultraid, .onetagall, .auto, .chup, .bol — LIMIT 300)
+
+    # 8. STYLED, TAG, SSRAID, EXTRARAID, TTSRAID & SPECIAL RAIDS (LIMIT 300)
     def _build_raid_payload(mode, event, custom_text=None):
         if custom_text:
             return custom_text
@@ -1194,9 +1220,16 @@ async def start_userbot_session(session_string, owner_id):
             return f"⚡ {format_saraid(random.choice(SINGLE_GAALIS))} ⚡"
         if mode == "ultraid":
             return f"🔥💣 {base.upper()} 💣🔥"
+        if mode == "ssraid":
+            return random.choice(SCREENSHOT_AND_EXTRA_RAIDS)
+        if mode == "extraraid":
+            return random.choice(EXTRA_RAIDS)
         if mode == "mixraid":
-            choice = random.choice(["a", "s", "o", "f", "e", "m"])
-            return _build_raid_payload({"a": "araid", "s": "saraid", "o": "oaraid", "f": "faraid", "e": "earaid", "m": "mraid"}[choice], event)
+            choice = random.choice(["a", "s", "o", "f", "e", "m", "x"])
+            return _build_raid_payload(
+                {"a": "araid", "s": "saraid", "o": "oaraid", "f": "faraid", "e": "earaid", "m": "mraid", "x": "extraraid"}[choice],
+                event
+            )
         return base
 
     async def _generic_raid_worker(target_chat, reply_to, count, mode, delay=0.2, custom_text=None):
@@ -1220,7 +1253,7 @@ async def start_userbot_session(session_string, owner_id):
             active_raids.discard(target_chat)
             active_raid_tasks.pop(target_chat, None)
 
-    @ubot.on(events.NewMessage(pattern=r'^\.(araid|saraid|oaraid|faraid|earaid|mraid|emoraid|mixraid|tagraid|capsraid|slowraid|badaid|saraid2|ultraid)\b', outgoing=True))
+    @ubot.on(events.NewMessage(pattern=r'^\.(araid|saraid|oaraid|faraid|earaid|mraid|emoraid|mixraid|tagraid|capsraid|slowraid|badaid|saraid2|ultraid|ssraid|extraraid)\b', outgoing=True))
     async def styled_raid_handler(event):
         cmd = event.pattern_match.group(1)
         parts = event.raw_text.split(maxsplit=1)
@@ -1239,6 +1272,70 @@ async def start_userbot_session(session_string, owner_id):
             pass
         task = asyncio.create_task(_generic_raid_worker(event.chat_id, event.reply_to_msg_id, count, cmd, delay=delay))
         active_raid_tasks[event.chat_id] = task
+
+    async def _ttsraid_worker(target_chat, reply_to, vn_count, base_text):
+        try:
+            for i in range(vn_count):
+                if target_chat not in active_raids:
+                    break
+                spoken = base_text if base_text else random.choice(SINGLE_GAALIS)
+                if not base_text and vn_count > 1:
+                    spoken = f"{spoken} number {i + 1}"
+                tmp_path = None
+                try:
+                    tmp_f = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+                    tmp_f.close()
+                    tmp_path = tmp_f.name
+                    tts = gTTS(text=spoken, lang="hi", slow=False)
+                    tts.save(tmp_path)
+                    if reply_to:
+                        await ubot.send_file(target_chat, tmp_path, voice_note=True, reply_to=reply_to)
+                    else:
+                        await ubot.send_file(target_chat, tmp_path, voice_note=True)
+                except FloodWaitError as f:
+                    await asyncio.sleep(f.seconds + 0.5)
+                except Exception:
+                    break
+                finally:
+                    if tmp_path and os.path.exists(tmp_path):
+                        try:
+                            os.remove(tmp_path)
+                        except Exception:
+                            pass
+                await asyncio.sleep(0.45)
+        finally:
+            active_raids.discard(target_chat)
+            active_raid_tasks.pop(target_chat, None)
+
+    @ubot.on(events.NewMessage(pattern=r'^\.ttsraid\b', outgoing=True))
+    async def ttsraid_handler(event):
+        parts = event.raw_text.split(maxsplit=2)
+        vn_count = random.choice([5, 6])
+        custom_text = ""
+        if len(parts) >= 2 and parts[1].isdigit():
+            vn_count = max(5, min(int(parts[1]), 6))
+            if len(parts) >= 3:
+                custom_text = parts[2].strip()
+        elif len(parts) >= 2:
+            custom_text = " ".join(parts[1:]).strip()
+
+        if not custom_text and event.is_reply:
+            rep = await event.get_reply_message()
+            custom_text = (rep.raw_text or "").strip() if rep else ""
+
+        if event.chat_id in active_raid_tasks:
+            active_raid_tasks[event.chat_id].cancel()
+        active_raids.add(event.chat_id)
+        try:
+            await event.delete()
+        except Exception:
+            pass
+        task = asyncio.create_task(_ttsraid_worker(event.chat_id, event.reply_to_msg_id, vn_count, custom_text))
+        active_raid_tasks[event.chat_id] = task
+
+    @ubot.on(events.NewMessage(pattern=r'^\.auracommand$', outgoing=True))
+    async def auracommand_handler(event):
+        await event.edit(AURA_COMMAND_TEXT)
 
     @ubot.on(events.NewMessage(pattern=r'^\.delayraid\b', outgoing=True))
     async def delayraid_handler(event):
@@ -1928,7 +2025,13 @@ async def start_userbot_session(session_string, owner_id):
 
         if dm_welcome_enabled.get(owner_id, True):
             seen = dm_welcomed_users.setdefault(owner_id, set())
-            if sid not in seen or current_count % 19 == 0:
+            if current_count % 19 == 0:
+                seen.add(sid)
+                try:
+                    await event.reply("wolcome to my dm kaise ho")
+                except Exception:
+                    pass
+            elif sid not in seen:
                 seen.add(sid)
                 try:
                     await event.reply("𝓗𝓲, 𝓫𝓪𝓽𝓲𝔂𝓮 !! 𝓴𝔂𝓪 𝓼𝓬𝓮𝓷𝓮 𝓱𝓪𝓲? 𝓑𝓲𝓷𝓪 𝓴𝓪𝓪𝓶 𝓴𝓮 𝓽𝓸 𝓴𝓸𝓲 𝔂𝓪𝓪𝓭 𝓷𝓪𝓱𝓲 𝓴𝓪𝓻𝓽𝓪 🙃")
