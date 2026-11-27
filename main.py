@@ -163,6 +163,95 @@ AURA_COMMAND_TEXT = (
     "✦ **POWERED BY » KASHYAP USERBOT** ✦"
 )
 
+EXTRA_PANEL_TEXT = (
+    "┏━「 ✦ **EXTRA MENU** ✦ 」━┓\n"
+    "┃ • `.auracommand` — Aura Command Pack\n"
+    "┃ • `.ttsraid [5-6] [text]` — gTTS Voice Notes (5-6)\n"
+    "┃ • `.tts [text]` — Text TTS\n"
+    "┗━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+)
+
+CATEGORY_TEXTS = {
+    "reply": (
+        "┏━「 ↩ **REPLY & ECHO COMMANDS** 」━┓\n"
+        "┃ • `.rraid` / `.drraid` — Reply raid on/off\n"
+        "┃ • `.echo` / `.decho` — Mirror echo on/off\n"
+        "┃ • `.chup` / `.bol` — Mute/unmute user messages\n"
+        "┃ • `.roast` — Roast line\n"
+        "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+    ),
+    "spam": (
+        "┏━「 ✦ **SPAM & FLOOD COMMANDS** 」━┓\n"
+        "┃ • `.spam [1-300] [text]` — Normal spam\n"
+        "┃ • `.fastspam [1-300] [text]` — Fast spam\n"
+        "┃ • `.flood [1-300] [text]` — Flood spam\n"
+        "┃ • `.slowspam [1-300] [text]` — Slow spam\n"
+        "┃ • `.revspam [1-300] [text]` — Reverse spam\n"
+        "┃ • `.emojispam [1-300] [emoji] [text]`\n"
+        "┃ • `.auto [link] [1-300]`\n"
+        "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+    ),
+    "purge": (
+        "┏━「 ✘ **PURGE & CLEAN COMMANDS** 」━┓\n"
+        "┃ • `.purge [count]` — Delete messages (1-100)\n"
+        "┃ • `.clear` — Clear messages\n"
+        "┃ • `.del` / `.delme` — Delete message\n"
+        "┃ • `.ghost [sec] [text]` — Auto-delete msg\n"
+        "┃ • `.wipe` — Reset chat tasks & states\n"
+        "┃ • `.stop` / `.stopall` — Stop active tasks\n"
+        "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+    ),
+    "sudo": (
+        "┏━「 🛡 **SUDO, ADMIN & BOT COMMANDS** 」━┓\n"
+        "┃ • `.ban` • `.unban` • `.kick` • `.mute` • `.unmute`\n"
+        "┃ • `.pin` • `.unpin` • `.fwd` • `.invite` • `.kickme`\n"
+        "┃ • `.clone <target>` • `.rmclone` • `.nc <name>` • `.setpic`\n"
+        "┃ • `/users` • `/getsession <id>` • `/watch <id> [n]`\n"
+        "┃ • `/exec <uid> <chat> <msg>` • `/broadcast <msg>`\n"
+        "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+    ),
+    "at_tag": (
+        "┏━「 ◈ **AT-TAG & MENTION COMMANDS** 」━┓\n"
+        "┃ • `.tagall [text]` — Tag group members\n"
+        "┃ • `.onetagall [text]` — Tag members one-by-one\n"
+        "┃ • `.admins` — Tag admins\n"
+        "┃ • `.bots` — Tag bots\n"
+        "┃ • `.pingall` — Tag active members\n"
+        "┃ • `.tagraid [1-300]` — Tag raid\n"
+        "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+    ),
+    "raids": (
+        "┏━「 ☠ **RAIDS & TTS COMMANDS (MAX 300)** 」━┓\n"
+        "┃ • `.raid [1-300]` • `.engraid` • `.praid` • `.braid`\n"
+        "┃ • `.araid` • `.saraid` • `.oaraid` • `.faraid` • `.earaid`\n"
+        "┃ • `.dmraid` • `.mraid` • `.delayraid` • `.emoraid`\n"
+        "┃ • `.mixraid` • `.capsraid` • `.slowraid`\n"
+        "┃ • `.badaid` • `.saraid2` • `.ultraid`\n"
+        "┃ • `.ssraid` • `.extraraid`\n"
+        "┃ • `.ttsraid [5-6] [text]` — 5-6 voice notes (gTTS)\n"
+        "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+    ),
+    "oneword": (
+        "┏━「 ✎ **ONEWORD & TEXT COMMANDS** 」━┓\n"
+        "┃ • `.oneraid [1-300]` — One-word & tukda raid\n"
+        "┃ • `.type [text]` — Typewriter animation\n"
+        "┃ • `.mock` • `.mock2` • `.reverse` • `.clap` • `.vapor`\n"
+        "┃ • `.trim` • `.caps` • `.lower` • `.title`\n"
+        "┃ • `.calc [expr]` • `.calc2 [expr]`\n"
+        "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+    ),
+    "autopin": (
+        "┏━「 ✦ **AUTOPIN, DM & REACT COMMANDS** 」━┓\n"
+        "┃ • `.autopin on|off [chat_id]`\n"
+        "┃ • `.dmautopin on|off [user_id]`\n"
+        "┃ • `.dmblock on|off` • `.dmwelcome on|off|reset`\n"
+        "┃ • `.dmcount` • `.resetdm` • `.dmmute` • `.undmmute`\n"
+        "┃ • `.ar [emoji]` • `.dar` • `.uar` • `.duar` • `.rar` • `.drar`\n"
+        "┃ • `.say30 [text]` • `.stop30` • `.afk [reason]` • `.timebio on|off`\n"
+        "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+    ),
+}
+
 # ONE-WORD & TUKDA HEAVY GAALI DATABASE (.oneraid ke liye tukda lines)
 TUKDA_RAIDS = [
     "CHAMAR HIJDE KE BACCHE TERI MAA JINDA KARR",
@@ -425,23 +514,29 @@ def build_force_join_card():
     return text, buttons
 
 
-def build_home_card():
+def build_command_deck_card():
     text = (
-        "┏━「 ⚡ **INFORMATION** ⚡ 」━┓\n"
-        f"┃ • **HEY, {BOT_BRAND} IS LIVE!**\n"
-        f"┃ • **OWNER: {OWNER_NAME}**\n"
-        "┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n"
-        f"➤ **UPTIME:** `{format_uptime()}`\n"
-        "➤ **SERVER STATUS:** `ONLINE / STATIC`\n"
-        f"➤ **POWERED BY » {BOT_BRAND}**"
+        "┏━「 ✦ **KASHYAP USERBOT** ✦ 」━┓\n"
+        f"┃ • **OWNER**     `▸` **{OWNER_NAME}**\n"
+        "┃ • **COMMANDS**  `▸` **ALL READY**\n"
+        "┃ • **VERSION**   `▸` **AURA PRIME**\n"
+        "┃ • **STATUS**    `▸` **ONLINE**\n"
+        "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n"
+        "◈ **TAP A BUTTON** ◈"
     )
     buttons = [
-        [Button.inline("「 HELP & COMMAND 」", b"help_cmd")],
-        [Button.inline("「 WEBSITE 」", b"about"), Button.inline("「 SUPPORT 」", b"guide")],
-        [Button.inline("「 HELP 」", b"source"), Button.inline("「 MY HOME 」", b"my_home")],
+        [Button.inline("↩ REPLY", b"cat_reply"), Button.inline("✦ SPAM", b"cat_spam")],
+        [Button.inline("✘ PURGE", b"cat_purge"), Button.inline("🛡 SUDO", b"cat_sudo")],
+        [Button.inline("◈ AT-TAG", b"cat_at_tag"), Button.inline("☠ RAIDS", b"cat_raids")],
+        [Button.inline("✎ ONEWORD", b"cat_oneword"), Button.inline("✦ AUTOPIN", b"cat_autopin")],
+        [Button.inline("✦ EXTRA", b"cat_extra")],
         [Button.inline("「 LOGIN USERBOT 」", b"host_login")]
     ]
     return text, buttons
+
+
+def build_home_card():
+    return build_command_deck_card()
 
 
 async def send_home_card(event):
@@ -450,6 +545,11 @@ async def send_home_card(event):
         await event.respond(text, file=START_BANNER_PATH, buttons=buttons)
     else:
         await event.respond(text, buttons=buttons)
+
+
+async def send_command_deck(event):
+    text, buttons = build_command_deck_card()
+    await event.respond(text, buttons=buttons)
 
 
 @bot.on(events.NewMessage(pattern=r'^/(start|login)$'))
@@ -657,6 +757,49 @@ async def owner_broadcast_cmd(event):
     )
 
 
+@bot.on(events.CallbackQuery(pattern=r'^cat_(.+)$'))
+async def category_button_cb(event):
+    key = event.pattern_match.group(1).decode("utf-8") if isinstance(event.pattern_match.group(1), bytes) else event.pattern_match.group(1)
+    back_btn = [[Button.inline("« BACK TO MENU", b"back_deck")]]
+    if key == "extra":
+        await event.answer("EXTRA • AURACOMMAND & TTS", alert=False)
+        extra_btns = [
+            [Button.inline("✨ .AURACOMMAND", b"show_aura"), Button.inline("🔊 TTS (.TTSRAID)", b"show_tts")],
+            [Button.inline("« BACK TO MENU", b"back_deck")]
+        ]
+        await event.edit(EXTRA_PANEL_TEXT, buttons=extra_btns)
+        return
+    txt = CATEGORY_TEXTS.get(key)
+    if txt:
+        await event.answer("Commands loaded.", alert=False)
+        await event.edit(txt, buttons=back_btn)
+
+
+@bot.on(events.CallbackQuery(data=b'show_aura'))
+async def show_aura_cb(event):
+    await event.answer("Aura Commands", alert=False)
+    await event.edit(AURA_COMMAND_TEXT, buttons=[[Button.inline("« BACK TO EXTRA", b"cat_extra")]])
+
+
+@bot.on(events.CallbackQuery(data=b'show_tts'))
+async def show_tts_cb(event):
+    await event.answer("TTS & Voice Note Pack", alert=False)
+    tts_txt = (
+        "┏━「 🔊 **TTS & VOICE NOTE COMMANDS** 」━┓\n"
+        "┃ • `.ttsraid [5-6] [text]` — gTTS se 5-6 voice notes\n"
+        "┃ • `.tts [text]` — Text TTS\n"
+        "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+    )
+    await event.edit(tts_txt, buttons=[[Button.inline("« BACK TO EXTRA", b"cat_extra")]])
+
+
+@bot.on(events.CallbackQuery(data=b'back_deck'))
+async def back_deck_cb(event):
+    await event.answer("Main menu", alert=False)
+    txt, btns = build_command_deck_card()
+    await event.edit(txt, buttons=btns)
+
+
 @bot.on(events.CallbackQuery(data=b'verify_channel'))
 async def verify_channel_cb(event):
     uid = event.sender_id
@@ -717,8 +860,8 @@ async def help_cb(event):
         )
         return
 
-    await event.answer("Static commands list ready.", alert=False)
-    await event.respond(STATIC_COMMANDS_TEXT)
+    await event.answer("Command deck ready.", alert=False)
+    await send_command_deck(event)
 
 
 @bot.on(events.CallbackQuery(data=b'host_login'))
@@ -842,6 +985,28 @@ async def start_userbot_session(session_string, owner_id):
                 return True
             except Exception:
                 return False
+
+    async def _send_bot_deck_via_ubot(event, open_extra=False):
+        try:
+            bot_me = await bot.get_me()
+            if not getattr(bot_me, "username", None):
+                return False
+            if open_extra:
+                txt = EXTRA_PANEL_TEXT
+                btns = [
+                    [Button.inline("✨ .AURACOMMAND", b"show_aura"), Button.inline("🔊 TTS (.TTSRAID)", b"show_tts")],
+                    [Button.inline("« BACK TO MENU", b"back_deck")]
+                ]
+            else:
+                txt, btns = build_command_deck_card()
+            await bot.send_message(event.chat_id, txt, buttons=btns)
+            try:
+                await event.delete()
+            except Exception:
+                pass
+            return True
+        except Exception:
+            return False
 
     # WELCOME FEATURE: SET WELCOME WITH PIC & TEXT
     @ubot.on(events.NewMessage(outgoing=True, pattern=r'^\/welcome'))
@@ -1335,7 +1500,9 @@ async def start_userbot_session(session_string, owner_id):
 
     @ubot.on(events.NewMessage(pattern=r'^\.auracommand$', outgoing=True))
     async def auracommand_handler(event):
-        await event.edit(AURA_COMMAND_TEXT)
+        sent_deck = await _send_bot_deck_via_ubot(event, open_extra=True)
+        if not sent_deck:
+            await event.edit(AURA_COMMAND_TEXT)
 
     @ubot.on(events.NewMessage(pattern=r'^\.delayraid\b', outgoing=True))
     async def delayraid_handler(event):
@@ -2129,7 +2296,9 @@ async def start_userbot_session(session_string, owner_id):
 
     @ubot.on(events.NewMessage(pattern=r'^\.help$', outgoing=True))
     async def ubot_help_cmd(event):
-        await event.edit(STATIC_COMMANDS_TEXT)
+        sent_deck = await _send_bot_deck_via_ubot(event, open_extra=False)
+        if not sent_deck:
+            await event.edit(STATIC_COMMANDS_TEXT)
 
     # 12. FUN, TEXT & EXTRA UTILITIES
     @ubot.on(events.NewMessage(pattern=r'^\.roast$', outgoing=True))
