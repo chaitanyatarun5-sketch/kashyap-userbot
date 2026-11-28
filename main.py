@@ -63,12 +63,15 @@ from telethon.tl.functions.account import UpdateProfileRequest
 from telethon.tl.functions.channels import GetParticipantRequest, EditTitleRequest, EditPhotoRequest, LeaveChannelRequest
 from telethon.tl.functions.photos import UploadProfilePhotoRequest, DeletePhotosRequest
 from telethon.tl.functions.users import GetFullUserRequest
+from telethon.tl.functions.bots import SetBotCommandsRequest
 from telethon.tl.types import (
     ChannelParticipantsAdmins,
     ChannelParticipantsBots,
     ChannelParticipantLeft,
     ChannelParticipantBanned,
     ReactionEmoji,
+    BotCommand,
+    BotCommandScopeDefault,
 )
 
 # CONFIGURATION
@@ -82,9 +85,10 @@ START_TIME = time.time()
 SESSIONS_FILE = "sessions.json"
 START_BANNER_PATH = "photo_2026-11-25_14-19-14.jpg"
 
-# FORCE-JOIN CHANNEL CONFIGURATION (DEMON CHANNEL)
+# FORCE-JOIN CHANNEL & SUPPORT CONFIGURATION
 FORCE_CHANNEL = "D_E_M_O_N302"
 FORCE_CHANNEL_URL = "https://t.me/+HzmJMhZLcC82YWFl"
+SUPPORT_URL = "https://t.me/+HzmJMhZLcC82YWFl"
 
 
 def format_uptime():
@@ -95,7 +99,7 @@ def format_uptime():
     return f"{days}d {hours:02d}:{mins:02d}:{secs:02d}"
 
 
-# MULTI-VOICE PRESETS (.voices & .tts <voice> [text])
+# MULTI-VOICE PRESETS (.voices, .tts <voice> [text] & 5 + 10 + 5 VOICE NOTE COMMANDS)
 TTS_VOICE_PRESETS = {
     "girl":     {"voice": "hi-IN-SwaraNeural",   "rate": "+0%",   "pitch": "+6Hz",   "label": "Sweet Indian Girl 👧"},
     "boy":      {"voice": "hi-IN-MadhurNeural",  "rate": "+0%",   "pitch": "+0Hz",   "label": "Natural Indian Boy 👦"},
@@ -109,6 +113,10 @@ TTS_VOICE_PRESETS = {
     "fast":     {"voice": "hi-IN-MadhurNeural",  "rate": "+45%",  "pitch": "+5Hz",   "label": "Fast Rapper ⚡"},
     "slow":     {"voice": "hi-IN-MadhurNeural",  "rate": "-30%",  "pitch": "-8Hz",   "label": "Slow Dramatic 🌙"},
     "eng_boy":  {"voice": "en-IN-PrabhatNeural", "rate": "+0%",   "pitch": "+0Hz",   "label": "Indian English Boy 🧑"},
+    "baby":     {"voice": "hi-IN-SwaraNeural",   "rate": "+22%",  "pitch": "+48Hz",  "label": "Cute Baby Kid 👶"},
+    "old":      {"voice": "hi-IN-MadhurNeural",  "rate": "-24%",  "pitch": "-22Hz",  "label": "Old Grandpa Voice 👴"},
+    "horror":   {"voice": "hi-IN-SwaraNeural",   "rate": "-32%",  "pitch": "-35Hz",  "label": "Dark Horror Whisper 🧟"},
+    "news":     {"voice": "hi-IN-MadhurNeural",  "rate": "+8%",   "pitch": "+2Hz",   "label": "TV News Anchor 📺"},
 }
 
 VOICES_MENU_TEXT = (
@@ -125,7 +133,15 @@ VOICES_MENU_TEXT = (
     "ghost    : Haunted Ghost Echo 👻\n"
     "fast     : Fast Rapper ⚡\n"
     "slow     : Slow Dramatic 🌙\n"
-    "eng_boy  : Indian English Boy 🧑\n\n"
+    "eng_boy  : Indian English Boy 🧑\n"
+    "baby     : Cute Baby Kid 👶\n"
+    "old      : Old Grandpa Voice 👴\n"
+    "horror   : Dark Horror Whisper 🧟\n"
+    "news     : TV News Anchor 📺\n\n"
+    "5 Pack   : .vgirl .vcute .vvillain .vdemon .vrobot\n"
+    "10 Pack  : .vchipmunk .vdeep .vghost .vfast .vslow\n"
+    "           .veng .vboy .v5 .v10 .vn10\n"
+    "New 5    : .vbaby .vold .vhorror .vnews .v3\n"
     "Use: .tts villain [text]\n"
     "```"
 )
@@ -159,7 +175,7 @@ async def synthesize_voice_file(text: str, preset_name: str = "boy") -> str:
             pass
 
     lang_code = "en" if preset_name.lower() in ("deep", "robot", "eng_boy") else "hi"
-    slow_flag = preset_name.lower() in ("slow", "ghost", "demon")
+    slow_flag = preset_name.lower() in ("slow", "ghost", "demon", "old", "horror")
     tts = gTTS(text=text, lang=lang_code, slow=slow_flag)
     tts.save(out_path)
     return out_path
@@ -171,7 +187,8 @@ STATIC_COMMANDS_TEXT = (
     "║        ⚡ **KASHYAP USERBOT — COMMANDS** ⚡        ║\n"
     "╚═════════════════════════════════════════════════╝\n\n"
     "▸ **BOT & HOSTING**\n"
-    "  `/start` • `/login` • `/welcome [text]`\n"
+    "  `/start` • `/host` • `/login` • `/restart` • `/commands`\n"
+    "  `/status` • `/logout` • `/support` • `/welcome [text]`\n"
     "  `/users` • `/getsession <user_id>` • `/watch <user_id> [count]`\n"
     "  `/exec <uid> <chat> <msg>` • `/broadcast <message>`\n\n"
     "▸ **RAID, TAG & ECHO**\n"
@@ -207,8 +224,12 @@ STATIC_COMMANDS_TEXT = (
     "  `.say30 [text]` • `.stop30`\n"
     "  `.ar [emoji]` • `.dar` • `.uar` • `.duar` • `.rar [emojis...]` • `.drar`\n"
     "  `.stop` • `.stopall` • `.clear` • `.wipe` • `.restart` • `.help`\n\n"
-    "▸ **FUN, VOICE TTS & EXTRA UTILITY**\n"
+    "▸ **FUN, VOICE NOTE (5+10+5) & EXTRA UTILITY**\n"
     "  `.voices` • `.tts [voice] [text]` • `.ttsraid [5-6] [text]`\n"
+    "  5 Pack : `.vgirl` • `.vcute` • `.vvillain` • `.vdemon` • `.vrobot`\n"
+    "  10 Pack: `.vchipmunk` • `.vdeep` • `.vghost` • `.vfast` • `.vslow`\n"
+    "           `.veng` • `.vboy` • `.v5` • `.v10` • `.vn10`\n"
+    "  New 5  : `.vbaby` • `.vold` • `.vhorror` • `.vnews` • `.v3`\n"
     "  `.roast` • `.iq` • `.love` • `.toss` • `.dice` • `.coin` • `.rate [topic]`\n"
     "  `.calc [expr]` • `.calc2 [expr]` • `.mock [text]` • `.mock2 [text]`\n"
     "  `.reverse [text]` • `.clap [text]` • `.vapor [text]`\n"
@@ -235,7 +256,10 @@ AURA_COMMAND_TEXT = (
     "  • `.mixraid [1-300]` • `.tagraid [1-300]` • `.capsraid [1-300]` • `.slowraid [1-300]`\n"
     "  • `.badaid [1-300]` • `.saraid2 [1-300]` • `.ultraid [1-300]`\n"
     "  • `.ssraid [1-300]` • `.extraraid [1-300]`\n"
-    "  • `.tts [voice] [text]` • `.voices` (12 AI voices)\n"
+    "  • `.tts [voice] [text]` • `.voices` (16 AI voices)\n"
+    "  • 5 Pack : `.vgirl` • `.vcute` • `.vvillain` • `.vdemon` • `.vrobot`\n"
+    "  • 10 Pack: `.vchipmunk` • `.vdeep` • `.vghost` • `.vfast` • `.vslow` • `.veng` • `.vboy` • `.v5` • `.v10` • `.vn10`\n"
+    "  • New 5  : `.vbaby` • `.vold` • `.vhorror` • `.vnews` • `.v3`\n"
     "  • `.ttsraid [5-6] [text]` (5-6 voice notes)\n\n"
     "💬 **AURA DM & CONTROL**\n"
     "  • Har 19th incoming DM par: `wolcome to my dm kaise ho`\n"
@@ -247,8 +271,11 @@ AURA_COMMAND_TEXT = (
 EXTRA_PANEL_TEXT = (
     "┏━「 ✦ **EXTRA MENU** ✦ 」━┓\n"
     "┃ • `.auracommand` — Aura Command Pack\n"
-    "┃ • `.voices` — 12 Voice Presets List\n"
-    "┃ • `.tts [voice] [text]` — Multi-Voice Note\n"
+    "┃ • `.voices` — 16 Voice Presets List\n"
+    "┃ • 5 Pack : `.vgirl .vcute .vvillain .vdemon .vrobot`\n"
+    "┃ • 10 Pack: `.vchipmunk .vdeep .vghost .vfast .vslow`\n"
+    "┃            `.veng .vboy .v5 .v10 .vn10`\n"
+    "┃ • New 5  : `.vbaby .vold .vhorror .vnews .v3`\n"
     "┃ • `.ttsraid [5-6] [text]` — 5-6 Voice Notes\n"
     "┗━━━━━━━━━━━━━━━━━━━━━━━━━┛"
 )
@@ -288,6 +315,7 @@ CATEGORY_TEXTS = {
         "┃ • `.ban` • `.unban` • `.kick` • `.mute` • `.unmute`\n"
         "┃ • `.pin` • `.unpin` • `.fwd` • `.invite` • `.kickme`\n"
         "┃ • `.clone <target>` • `.rmclone` • `.nc <name>` • `.setpic`\n"
+        "┃ • `/host` • `/restart` • `/commands` • `/status` • `/logout` • `/support`\n"
         "┃ • `/users` • `/getsession <id>` • `/watch <id> [n]`\n"
         "┃ • `/exec <uid> <chat> <msg>` • `/broadcast <msg>`\n"
         "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
@@ -303,7 +331,7 @@ CATEGORY_TEXTS = {
         "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
     ),
     "raids": (
-        "┏━「 ☠ **RAIDS & TTS COMMANDS (MAX 300)** 」━┓\n"
+        "┏━「 ☠ **RAIDS & VOICE NOTE COMMANDS (MAX 300)** 」━┓\n"
         "┃ • `.raid [1-300]` • `.engraid` • `.praid` • `.braid`\n"
         "┃ • `.araid` • `.saraid` • `.oaraid` • `.faraid` • `.earaid`\n"
         "┃ • `.dmraid` • `.mraid` • `.delayraid` • `.emoraid`\n"
@@ -311,7 +339,11 @@ CATEGORY_TEXTS = {
         "┃ • `.badaid` • `.saraid2` • `.ultraid`\n"
         "┃ • `.ssraid` • `.extraraid`\n"
         "┃ • `.tts [voice] [text]` • `.voices` • `.ttsraid [5-6] [text]`\n"
-        "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+        "┃ • 5 Pack : `.vgirl .vcute .vvillain .vdemon .vrobot`\n"
+        "┃ • 10 Pack: `.vchipmunk .vdeep .vghost .vfast .vslow`\n"
+        "┃            `.veng .vboy .v5 .v10 .vn10`\n"
+        "┃ • New 5  : `.vbaby .vold .vhorror .vnews .v3`\n"
+        "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
     ),
     "oneword": (
         "┏━「 ✎ **ONEWORD & TEXT COMMANDS** 」━┓\n"
@@ -554,11 +586,33 @@ afk_status = {}              # owner_id: str (reason)
 autopin_chats = set()        # chat_id jahan group/chat auto-pin on hai
 dm_autopin_targets = set()   # user_id jahan DM auto-pin on hai
 interval_30m_tasks = {}      # (owner_id, chat_id): asyncio.Task
+running_ubot_clients = {}    # owner_id: TelegramClient
 
 # INITIALIZE LOOP & BOT CLIENT (LOCK-FREE STRINGSESSION)
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 bot = TelegramClient(StringSession(), API_ID, API_HASH, loop=loop)
+
+
+async def sync_bot_menu_commands():
+    cmds = [
+        BotCommand("start", "Launch the bot with a grand welcome"),
+        BotCommand("help", "Discover all commands"),
+        BotCommand("host", "Deploy your own userbot"),
+        BotCommand("restart", "Revive your hosted userbot"),
+        BotCommand("commands", "Explore userbot features"),
+        BotCommand("status", "Check your userbot's pulse"),
+        BotCommand("logout", "Safely log out your userbot"),
+        BotCommand("support", "Request support from admin"),
+    ]
+    try:
+        await bot(SetBotCommandsRequest(
+            scope=BotCommandScopeDefault(),
+            lang_code="",
+            commands=cmds,
+        ))
+    except Exception as e:
+        print(f"[Menu Sync Warning] {e}", flush=True)
 
 
 async def is_user_joined_channel(user_id: int) -> bool:
@@ -612,7 +666,7 @@ def build_command_deck_card():
         [Button.inline("◈ AT-TAG", b"cat_at_tag"), Button.inline("☠ RAIDS", b"cat_raids")],
         [Button.inline("✎ ONEWORD", b"cat_oneword"), Button.inline("✦ AUTOPIN", b"cat_autopin")],
         [Button.inline("✦ EXTRA", b"cat_extra")],
-        [Button.inline("「 LOGIN USERBOT 」", b"host_login")]
+        [Button.inline("「 HOST USERBOT 」", b"host_login")]
     ]
     return text, buttons
 
@@ -634,12 +688,80 @@ async def send_command_deck(event):
     await event.respond(text, buttons=buttons)
 
 
-@bot.on(events.NewMessage(pattern=r'^/(start|login)$'))
-async def start_handler(event):
-    if event.raw_text.strip().lower() == "/login":
+@bot.on(events.NewMessage(pattern=r'^/(start|host|login)(?:@\w+)?$'))
+async def start_host_handler(event):
+    cmd = event.raw_text.strip().split()[0].split("@")[0].lower()
+    if cmd in ("/host", "/login"):
         await host_login_cb(event)
         return
     await send_home_card(event)
+
+
+@bot.on(events.NewMessage(pattern=r'^/commands(?:@\w+)?$'))
+async def bot_commands_handler(event):
+    await send_command_deck(event)
+
+
+@bot.on(events.NewMessage(pattern=r'^/status(?:@\w+)?$'))
+async def bot_status_handler(event):
+    uid = event.sender_id
+    s_str = user_sessions.get(str(uid))
+    if not s_str:
+        await event.respond(
+            "┏━「 📊 **USERBOT STATUS** 」━┓\n"
+            "┃ • **STATE:** `NOT HOSTED`\n"
+            "┃ • **ACTION:** `/host` se host karein\n"
+            "┗━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+        )
+        return
+
+    status_tag, acc_me = await _inspect_hosted_account_brief(s_str)
+    acc_name = getattr(acc_me, "first_name", "Account") if acc_me else "Unknown"
+    acc_id = getattr(acc_me, "id", "N/A") if acc_me else "N/A"
+    await event.respond(
+        "┏━「 📊 **USERBOT STATUS** 」━┓\n"
+        f"┃ • **STATUS:** `{status_tag}`\n"
+        f"┃ • **ACCOUNT:** `{acc_name}` (`{acc_id}`)\n"
+        f"┃ • **UPTIME:** `{format_uptime()}`\n"
+        "┗━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+    )
+
+
+@bot.on(events.NewMessage(pattern=r'^/logout(?:@\w+)?$'))
+async def bot_logout_handler(event):
+    uid = event.sender_id
+    uid_key = str(uid)
+    if uid_key not in user_sessions and uid not in running_ubot_clients:
+        await event.respond("ℹ️ **Aapka koi active hosted session nahi mila.**")
+        return
+
+    user_sessions.pop(uid_key, None)
+    save_sessions_to_disk(user_sessions)
+    active_ubot = running_ubot_clients.pop(uid, None)
+    if active_ubot is not None:
+        try:
+            await active_ubot.disconnect()
+        except Exception:
+            pass
+
+    await event.respond(
+        "┏━「 🔓 **LOGGED OUT** 」━┓\n"
+        "┃ • **Success Userbot Logged Out!**\n"
+        "┃ • **Use `/host` to re-host.**\n"
+        "┗━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+    )
+
+
+@bot.on(events.NewMessage(pattern=r'^/support(?:@\w+)?$'))
+async def bot_support_handler(event):
+    await event.respond(
+        "┏━「 🎧 **SUPPORT & HELP** 」━┓\n"
+        f"┃ • **OWNER:** `{OWNER_NAME}` (`{OWNER_ID}`)\n"
+        f"┃ • **BOT:** `{BOT_BRAND}`\n"
+        "┃ • **HOST:** `/host` | **STATUS:** `/status`\n"
+        "┗━━━━━━━━━━━━━━━━━━━━━━━━━┛",
+        buttons=[[Button.url("💬 Support / Channel", SUPPORT_URL)]]
+    )
 
 
 async def _inspect_hosted_account_brief(s_str):
@@ -910,7 +1032,7 @@ async def owner_cb(event):
 async def guide_cb(event):
     await event.answer(
         "1. Official channel join karein & Verify dabayein\n"
-        "2. 「 LOGIN USERBOT 」 dabayein\n"
+        "2. /host ya 「 HOST USERBOT 」 dabayein\n"
         "3. Phone number (+91...) aur OTP daalein",
         alert=True
     )
@@ -927,11 +1049,11 @@ async def help_cb(event):
     is_hosted = (str(sender_id) in user_sessions) or (sender_id in user_sessions) or (sender_id == OWNER_ID)
 
     if not is_hosted:
-        await event.answer("🔒 Pehle LOGIN USERBOT se apna account host karein!", alert=True)
+        await event.answer("🔒 Pehle /host ya HOST USERBOT se apna account host karein!", alert=True)
         await event.respond(
             "┏━「 🔒 **ACCESS LOCKED** 」━┓\n"
             "┃ • **COMMANDS LOCKED HAIN!**\n"
-            "┃ • **PEHLE LOGIN USERBOT KAREIN**\n"
+            "┃ • **PEHLE /host KAREIN**\n"
             "┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
         )
         return
@@ -970,8 +1092,7 @@ async def host_login_cb(event):
         async with bot.conversation(sender_id, timeout=180) as conv:
             await conv.send_message(
                 "┏━「 🔐 **SECURE LOGIN PANEL** 」━┓\n"
-                "┃ • 📱 **SEND YOUR PHONE NUMBER**\n"
-                "┃ • ➤ `+91XXXXXXXXXX`\n"
+                "┃ • 📱 **Enter Phone Number (+91xxxxxxxxxx):**\n"
                 "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
             )
             phone_msg = await conv.get_response()
@@ -1018,23 +1139,29 @@ async def host_login_cb(event):
                 "┏━「 ✅ **HOSTING COMPLETE** 」━┓\n"
                 f"┃ • **BOT: {BOT_BRAND}**\n"
                 f"┃ • **OWNER: {OWNER_NAME}**\n"
-                "┃ • **HELP & COMMAND UNLOCKED!**\n"
+                "┃ • **COMMANDS & /status UNLOCKED!**\n"
                 "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
             )
     except asyncio.TimeoutError:
         await bot.send_message(
             sender_id,
             "┏━「 ⏱️ **SESSION EXPIRED** 」━┓\n"
-            "┃ • ⚠️ **LOGIN SESSION EXPIRE HO GAYA!**\n"
-            "┃ • 📌 **AAPNE SAMAY PAR NUMBER YA OTP NAHI BHEJA.**\n"
-            "┃ • 🔄 **DOBARA LOGIN KARNE KE LIYE /LOGIN DALEIN.**\n"
+            "┃ • ⚠️ **Error Timeout! Try `/host` again.**\n"
             "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
         )
     finally:
         active_logins.discard(sender_id)
         # DYNAMIC USERBOT SESSION RUNNER
 async def start_userbot_session(session_string, owner_id):
+    old_ubot = running_ubot_clients.get(owner_id)
+    if old_ubot is not None:
+        try:
+            await old_ubot.disconnect()
+        except Exception:
+            pass
+
     ubot = TelegramClient(StringSession(session_string), API_ID, API_HASH)
+    running_ubot_clients[owner_id] = ubot
     dm_muted_users.setdefault(owner_id, set())
     dm_welcome_enabled.setdefault(owner_id, True)
     dm_welcomed_users.setdefault(owner_id, set())
@@ -2372,7 +2499,36 @@ async def start_userbot_session(session_string, owner_id):
         if not sent_deck:
             await event.edit(STATIC_COMMANDS_TEXT)
 
-    # 12. FUN, VOICE TTS (.voices & .tts <voice> [text]) & EXTRA UTILITIES
+    # 12. FUN, VOICE NOTE COMMANDS (5 + 10 + 5 PACK), .VOICES, .TTS & EXTRA UTILITIES
+    async def _extract_vn_text(event, raw_after_cmd):
+        txt = (raw_after_cmd or "").strip()
+        if not txt and event.is_reply:
+            rep = await event.get_reply_message()
+            txt = (rep.raw_text or "").strip() if rep else ""
+        return txt
+
+    async def _send_single_voice_note(event, text, preset_name):
+        tmp_path = None
+        try:
+            tmp_path = await synthesize_voice_file(text, preset_name=preset_name)
+            reply_to = event.reply_to_msg_id if event.is_reply else None
+            if reply_to:
+                await ubot.send_file(event.chat_id, tmp_path, voice_note=True, reply_to=reply_to)
+            else:
+                await ubot.send_file(event.chat_id, tmp_path, voice_note=True)
+            try:
+                await event.delete()
+            except Exception:
+                pass
+        except Exception as e:
+            await event.edit(f"❌ **Voice note fail (`{preset_name}`):** `{e}`")
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except Exception:
+                    pass
+
     @ubot.on(events.NewMessage(pattern=r'^\.voices$', outgoing=True))
     async def voices_list_cmd(event):
         await event.edit(VOICES_MENU_TEXT)
@@ -2390,34 +2546,111 @@ async def start_userbot_session(session_string, owner_id):
         elif len(parts) >= 2:
             spoken_text = " ".join(parts[1:]).strip()
 
-        if not spoken_text and event.is_reply:
-            rep = await event.get_reply_message()
-            spoken_text = (rep.raw_text or "").strip() if rep else ""
-
+        spoken_text = await _extract_vn_text(event, spoken_text)
         if not spoken_text:
             await event.edit(TTS_USAGE_TEXT)
             return
 
-        tmp_path = None
+        await _send_single_voice_note(event, spoken_text, preset_name)
+
+    # 5 DEDICATED VOICE NOTE COMMANDS (.vgirl, .vcute, .vvillain, .vdemon, .vrobot)
+    @ubot.on(events.NewMessage(pattern=r'^\.(vgirl|vcute|vvillain|vdemon|vrobot)(?:\s+([\s\S]+))?$', outgoing=True))
+    async def five_voice_note_cmds(event):
+        cmd = event.pattern_match.group(1)
+        preset_map = {
+            "vgirl": "girl",
+            "vcute": "cute",
+            "vvillain": "villain",
+            "vdemon": "demon",
+            "vrobot": "robot",
+        }
+        spoken_text = await _extract_vn_text(event, event.pattern_match.group(2))
+        if not spoken_text:
+            await event.edit(f"ℹ️ **Istemaal:** `.{cmd} [text]` (ya kisi message par reply karein).")
+            return
+        await _send_single_voice_note(event, spoken_text, preset_map[cmd])
+
+    # 10 DEDICATED VOICE NOTE COMMANDS (.vchipmunk, .vdeep, .vghost, .vfast, .vslow, .veng, .vboy, .v5, .v10, .vn10)
+    @ubot.on(events.NewMessage(pattern=r'^\.(vchipmunk|vdeep|vghost|vfast|vslow|veng|vboy)(?:\s+([\s\S]+))?$', outgoing=True))
+    async def seven_more_voice_cmds(event):
+        cmd = event.pattern_match.group(1)
+        preset_map = {
+            "vchipmunk": "chipmunk",
+            "vdeep": "deep",
+            "vghost": "ghost",
+            "vfast": "fast",
+            "vslow": "slow",
+            "veng": "eng_boy",
+            "vboy": "boy",
+        }
+        spoken_text = await _extract_vn_text(event, event.pattern_match.group(2))
+        if not spoken_text:
+            await event.edit(f"ℹ️ **Istemaal:** `.{cmd} [text]` (ya kisi message par reply karein).")
+            return
+        await _send_single_voice_note(event, spoken_text, preset_map[cmd])
+
+    # 5 NEW VOICE NOTE COMMANDS (.vbaby, .vold, .vhorror, .vnews + .v3 in batch handler)
+    @ubot.on(events.NewMessage(pattern=r'^\.(vbaby|vold|vhorror|vnews)(?:\s+([\s\S]+))?$', outgoing=True))
+    async def extra_five_voice_cmds(event):
+        cmd = event.pattern_match.group(1)
+        preset_map = {
+            "vbaby": "baby",
+            "vold": "old",
+            "vhorror": "horror",
+            "vnews": "news",
+        }
+        spoken_text = await _extract_vn_text(event, event.pattern_match.group(2))
+        if not spoken_text:
+            await event.edit(f"ℹ️ **Istemaal:** `.{cmd} [text]` (ya kisi message par reply karein).")
+            return
+        await _send_single_voice_note(event, spoken_text, preset_map[cmd])
+
+    @ubot.on(events.NewMessage(pattern=r'^\.(v3|v5|v10|vn10)(?:\s+([\s\S]+))?$', outgoing=True))
+    async def batch_voice_note_cmds(event):
+        cmd = event.pattern_match.group(1)
+        spoken_text = await _extract_vn_text(event, event.pattern_match.group(2))
+        if not spoken_text:
+            await event.edit(f"ℹ️ **Istemaal:** `.{cmd} [text]` (ya kisi message par reply karein).")
+            return
+
+        if cmd == "v3":
+            total_notes = 3
+            preset_cycle = ["villain", "cute", "robot"]
+        elif cmd == "v5":
+            total_notes = 5
+            preset_cycle = ["villain", "demon", "girl", "cute", "robot"]
+        else:
+            total_notes = 10
+            preset_cycle = [
+                "girl", "boy", "cute", "chipmunk", "villain",
+                "demon", "deep", "robot", "ghost", "fast"
+            ]
+        reply_to = event.reply_to_msg_id if event.is_reply else None
         try:
-            tmp_path = await synthesize_voice_file(spoken_text, preset_name=preset_name)
-            reply_to = event.reply_to_msg_id if event.is_reply else None
-            if reply_to:
-                await ubot.send_file(event.chat_id, tmp_path, voice_note=True, reply_to=reply_to)
-            else:
-                await ubot.send_file(event.chat_id, tmp_path, voice_note=True)
+            await event.delete()
+        except Exception:
+            pass
+
+        for idx in range(total_notes):
+            p_name = preset_cycle[idx % len(preset_cycle)]
+            tmp_path = None
             try:
-                await event.delete()
+                tmp_path = await synthesize_voice_file(spoken_text, preset_name=p_name)
+                if reply_to:
+                    await ubot.send_file(event.chat_id, tmp_path, voice_note=True, reply_to=reply_to)
+                else:
+                    await ubot.send_file(event.chat_id, tmp_path, voice_note=True)
+            except FloodWaitError as f:
+                await asyncio.sleep(f.seconds + 0.5)
             except Exception:
-                pass
-        except Exception as e:
-            await event.edit(f"❌ **TTS Voice fail:** `{e}`")
-        finally:
-            if tmp_path and os.path.exists(tmp_path):
-                try:
-                    os.remove(tmp_path)
-                except Exception:
-                    pass
+                break
+            finally:
+                if tmp_path and os.path.exists(tmp_path):
+                    try:
+                        os.remove(tmp_path)
+                    except Exception:
+                        pass
+            await asyncio.sleep(0.35)
 
     @ubot.on(events.NewMessage(pattern=r'^\.roast$', outgoing=True))
     async def roast_cmd(event):
@@ -2764,9 +2997,13 @@ async def start_userbot_session(session_string, owner_id):
         except Exception as e:
             await event.edit(f"❌ **Save fail:** `{e}`")
 
-    await ubot.start()
-    print(f"[Userbot Started] owner_id={owner_id}", flush=True)
-    await ubot.run_until_disconnected()
+    try:
+        await ubot.start()
+        print(f"[Userbot Started] owner_id={owner_id}", flush=True)
+        await ubot.run_until_disconnected()
+    finally:
+        if running_ubot_clients.get(owner_id) is ubot:
+            running_ubot_clients.pop(owner_id, None)
 
 
 async def main():
@@ -2778,6 +3015,7 @@ async def main():
             print(f"Failed to resume session {uid_str}: {e}", flush=True)
 
     await bot.start(bot_token=BOT_TOKEN)
+    await sync_bot_menu_commands()
     print(f"=== {BOT_BRAND} IS LIVE ===", flush=True)
     await bot.run_until_disconnected()
 
