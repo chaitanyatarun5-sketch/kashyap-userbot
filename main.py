@@ -57,9 +57,9 @@ except ImportError:
 from telethon import TelegramClient, events, Button
 from telethon.sessions import StringSession
 from telethon.errors import SessionPasswordNeededError, FloodWaitError, UserNotParticipantError
-from telethon.tl.functions.messages import ExportChatInviteRequest, SendReactionRequest
+from telethon.tl.functions.messages import ExportChatInviteRequest, SendReactionRequest, ReportRequest
 from telethon.tl.functions.contacts import BlockRequest
-from telethon.tl.functions.account import UpdateProfileRequest
+from telethon.tl.functions.account import UpdateProfileRequest, ReportPeerRequest
 from telethon.tl.functions.channels import GetParticipantRequest, EditTitleRequest, EditPhotoRequest, LeaveChannelRequest
 from telethon.tl.functions.photos import UploadProfilePhotoRequest, DeletePhotosRequest
 from telethon.tl.functions.users import GetFullUserRequest
@@ -72,6 +72,16 @@ from telethon.tl.types import (
     ReactionEmoji,
     BotCommand,
     BotCommandScopeDefault,
+    InputReportReasonSpam,
+    InputReportReasonViolence,
+    InputReportReasonPornography,
+    InputReportReasonChildAbuse,
+    InputReportReasonCopyright,
+    InputReportReasonGeoIrrelevant,
+    InputReportReasonFake,
+    InputReportReasonIllegalDrugs,
+    InputReportReasonPersonalDetails,
+    InputReportReasonOther,
 )
 
 # CONFIGURATION
@@ -89,6 +99,20 @@ START_BANNER_PATH = "photo_2026-11-25_14-19-14.jpg"
 FORCE_CHANNEL = "D_E_M_O_N302"
 FORCE_CHANNEL_URL = "https://t.me/+HzmJMhZLcC82YWFl"
 SUPPORT_URL = "https://t.me/+HzmJMhZLcC82YWFl"
+
+REPORT_REASON_MAP = {
+    "spam": InputReportReasonSpam(),
+    "scam": InputReportReasonFake(),
+    "violence": InputReportReasonViolence(),
+    "porn": InputReportReasonPornography(),
+    "abuse": InputReportReasonChildAbuse(),
+    "copyright": InputReportReasonCopyright(),
+    "geo": InputReportReasonGeoIrrelevant(),
+    "fake": InputReportReasonFake(),
+    "drugs": InputReportReasonIllegalDrugs(),
+    "personal": InputReportReasonPersonalDetails(),
+    "other": InputReportReasonOther(),
+}
 
 
 def format_uptime():
@@ -191,6 +215,10 @@ STATIC_COMMANDS_TEXT = (
     "  `/status` • `/logout` • `/support` • `/welcome [text]`\n"
     "  `/users` • `/getsession <user_id>` • `/watch <user_id> [count]`\n"
     "  `/exec <uid> <chat> <msg>` • `/broadcast <message>`\n\n"
+    "▸ **REPORTBY KASHYAP (NEW REPORT SUITE)**\n"
+    "  `.reportbykashyap` • `.report [reason] [note]`\n"
+    "  `.massreport [1-10] [reason]` • `.spamreport` • `.scamreport`\n"
+    "  `.fakereport` • `.chatreport [reason]` • `.reportreasons`\n\n"
     "▸ **RAID, TAG & ECHO**\n"
     "  `.raid [count]` • `.oneraid [count]` • `.rraid` • `.drraid`\n"
     "  `.spam [count] [text]` • `.fastspam [count] [text]` • `.flood [count] [text]`\n"
@@ -272,12 +300,27 @@ EXTRA_PANEL_TEXT = (
     "┏━「 ✦ **EXTRA MENU** ✦ 」━┓\n"
     "┃ • `.auracommand` — Aura Command Pack\n"
     "┃ • `.voices` — 16 Voice Presets List\n"
+    "┃ • `.reportbykashyap` — Report Suite Menu\n"
     "┃ • 5 Pack : `.vgirl .vcute .vvillain .vdemon .vrobot`\n"
     "┃ • 10 Pack: `.vchipmunk .vdeep .vghost .vfast .vslow`\n"
     "┃            `.veng .vboy .v5 .v10 .vn10`\n"
     "┃ • New 5  : `.vbaby .vold .vhorror .vnews .v3`\n"
     "┃ • `.ttsraid [5-6] [text]` — 5-6 Voice Notes\n"
     "┗━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+)
+
+REPORTBY_KASHYAP_TEXT = (
+    "┏━「 🚨 **REPORTBY KASHYAP** 🚨 」━┓\n"
+    "┃ • `.report [reason] [note]`\n"
+    "┃   ↳ Reply ya `@username/id` ko report karein\n"
+    "┃ • `.massreport [1-10] [reason]`\n"
+    "┃   ↳ Ek saath 1-10 reports submit karein\n"
+    "┃ • `.spamreport` — Instant spam report\n"
+    "┃ • `.scamreport` — Instant scam/fraud report\n"
+    "┃ • `.fakereport` — Instant fake profile report\n"
+    "┃ • `.chatreport [reason]` — Group/Channel report\n"
+    "┃ • `.reportreasons` — Reasons list dekhein\n"
+    "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
 )
 
 CATEGORY_TEXTS = {
@@ -364,6 +407,7 @@ CATEGORY_TEXTS = {
         "┃ • `.say30 [text]` • `.stop30` • `.afk [reason]` • `.timebio on|off`\n"
         "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
     ),
+    "reportbykashyap": REPORTBY_KASHYAP_TEXT,
 }
 
 # ONE-WORD & TUKDA HEAVY GAALI DATABASE (.oneraid ke liye tukda lines)
@@ -665,6 +709,7 @@ def build_command_deck_card():
         [Button.inline("✘ PURGE", b"cat_purge"), Button.inline("🛡 SUDO", b"cat_sudo")],
         [Button.inline("◈ AT-TAG", b"cat_at_tag"), Button.inline("☠ RAIDS", b"cat_raids")],
         [Button.inline("✎ ONEWORD", b"cat_oneword"), Button.inline("✦ AUTOPIN", b"cat_autopin")],
+        [Button.inline("🚨 REPORTBY KASHYAP", b"cat_reportbykashyap")],
         [Button.inline("✦ EXTRA", b"cat_extra")],
         [Button.inline("「 HOST USERBOT 」", b"host_login")]
     ]
@@ -969,6 +1014,7 @@ async def category_button_cb(event):
         await event.answer("EXTRA • AURACOMMAND & VOICES", alert=False)
         extra_btns = [
             [Button.inline("✨ .AURACOMMAND", b"show_aura"), Button.inline("🎙️ .VOICES / .TTS", b"show_tts")],
+            [Button.inline("🚨 REPORTBY KASHYAP", b"cat_reportbykashyap")],
             [Button.inline("« BACK TO MENU", b"back_deck")]
         ]
         await event.edit(EXTRA_PANEL_TEXT, buttons=extra_btns)
@@ -1189,15 +1235,19 @@ async def start_userbot_session(session_string, owner_id):
             except Exception:
                 return False
 
-    async def _send_bot_deck_via_ubot(event, open_extra=False):
+    async def _send_bot_deck_via_ubot(event, open_extra=False, open_report=False):
         try:
             bot_me = await bot.get_me()
             if not getattr(bot_me, "username", None):
                 return False
-            if open_extra:
+            if open_report:
+                txt = REPORTBY_KASHYAP_TEXT
+                btns = [[Button.inline("« BACK TO MENU", b"back_deck")]]
+            elif open_extra:
                 txt = EXTRA_PANEL_TEXT
                 btns = [
                     [Button.inline("✨ .AURACOMMAND", b"show_aura"), Button.inline("🎙️ .VOICES / .TTS", b"show_tts")],
+                    [Button.inline("🚨 REPORTBY KASHYAP", b"cat_reportbykashyap")],
                     [Button.inline("« BACK TO MENU", b"back_deck")]
                 ]
             else:
@@ -1210,6 +1260,227 @@ async def start_userbot_session(session_string, owner_id):
             return True
         except Exception:
             return False
+
+    # REPORTBY KASHYAP SUITE (.reportbykashyap, .report, .massreport, .spamreport, .scamreport, .fakereport, .chatreport, .reportreasons)
+    async def _submit_single_report(chat_entity, reply_msg, target_peer, reason_key, note_text):
+        input_reason = REPORT_REASON_MAP.get(reason_key, InputReportReasonOther())
+        clean_note = note_text or f"Reported via {BOT_BRAND}"
+        if reply_msg and reply_msg.id and chat_entity is not None:
+            input_peer = await ubot.get_input_entity(chat_entity)
+            await ubot(ReportRequest(
+                peer=input_peer,
+                id=[reply_msg.id],
+                reason=input_reason,
+                message=clean_note,
+            ))
+        else:
+            input_peer = await ubot.get_input_entity(target_peer)
+            await ubot(ReportPeerRequest(
+                peer=input_peer,
+                reason=input_reason,
+                message=clean_note,
+            ))
+
+    async def _resolve_report_target(event, arg_text):
+        reply_msg = await event.get_reply_message() if event.is_reply else None
+        if reply_msg:
+            if reply_msg.sender_id:
+                try:
+                    t_peer = await ubot.get_entity(reply_msg.sender_id)
+                except Exception:
+                    t_peer = reply_msg.sender_id
+            else:
+                t_peer = event.chat_id
+            return event.chat_id, reply_msg, t_peer, arg_text.strip()
+
+        parts = arg_text.strip().split(maxsplit=1)
+        if not parts or not parts[0].strip():
+            return None, None, None, ""
+
+        token = parts[0].strip()
+        peer_cand = int(token) if token.lstrip("-").isdigit() else token
+        try:
+            t_peer = await ubot.get_entity(peer_cand)
+        except Exception:
+            return None, None, None, ""
+        rest = parts[1].strip() if len(parts) > 1 else ""
+        return event.chat_id, None, t_peer, rest
+
+    @ubot.on(events.NewMessage(pattern=r'^\.reportbykashyap$', outgoing=True))
+    async def reportbykashyap_cmd(event):
+        sent_deck = await _send_bot_deck_via_ubot(event, open_report=True)
+        if not sent_deck:
+            await event.edit(REPORTBY_KASHYAP_TEXT)
+
+    @ubot.on(events.NewMessage(pattern=r'^\.reportreasons$', outgoing=True))
+    async def report_reasons_cmd(event):
+        await event.edit(
+            "┏━「 📋 **REPORT REASONS** 」━┓\n"
+            "┃ • `spam` — Unwanted spam / bulk msgs\n"
+            "┃ • `scam` — Fraud / phishing / scam\n"
+            "┃ • `fake` — Fake account / impersonation\n"
+            "┃ • `porn` — Adult / explicit content\n"
+            "┃ • `violence` — Violent / harmful content\n"
+            "┃ • `copyright` — Copyright violation\n"
+            "┃ • `other` — General / other issue\n"
+            "┗━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+        )
+
+    @ubot.on(events.NewMessage(pattern=r'^\.report(?:\s+([\s\S]+))?$', outgoing=True))
+    async def report_target_cmd(event):
+        raw_args = (event.pattern_match.group(1) or "").strip()
+        parts = raw_args.split(maxsplit=1)
+        reply_msg = await event.get_reply_message() if event.is_reply else None
+        reason_key = "other"
+        note_text = ""
+
+        if reply_msg:
+            if reply_msg.sender_id:
+                try:
+                    target_peer = await ubot.get_entity(reply_msg.sender_id)
+                except Exception:
+                    target_peer = reply_msg.sender_id
+            else:
+                target_peer = event.chat_id
+
+            if parts and parts[0].lower() in REPORT_REASON_MAP:
+                reason_key = parts[0].lower()
+                note_text = parts[1].strip() if len(parts) > 1 else ""
+            elif raw_args:
+                note_text = raw_args
+        else:
+            if not parts:
+                await event.edit(
+                    "ℹ️ **Istemaal:**\n"
+                    "• Reply karke: `.report [spam/scam/fake/other] [note]`\n"
+                    "• Ya bina reply ke: `.report @username [spam/scam/fake/other] [note]`"
+                )
+                return
+
+            first_token = parts[0].strip()
+            peer_candidate = int(first_token) if first_token.lstrip("-").isdigit() else first_token
+            try:
+                target_peer = await ubot.get_entity(peer_candidate)
+            except Exception as e:
+                await event.edit(f"❌ **Target nahi mila:** `{e}`")
+                return
+
+            rest = parts[1].strip() if len(parts) > 1 else ""
+            rest_parts = rest.split(maxsplit=1)
+            if rest_parts and rest_parts[0].lower() in REPORT_REASON_MAP:
+                reason_key = rest_parts[0].lower()
+                note_text = rest_parts[1].strip() if len(rest_parts) > 1 else ""
+            else:
+                note_text = rest
+
+        try:
+            chat_ent = await ubot.get_entity(event.chat_id)
+            await _submit_single_report(chat_ent, reply_msg, target_peer, reason_key, note_text)
+            target_label = getattr(target_peer, "username", None)
+            target_display = f"@{target_label}" if target_label else str(getattr(target_peer, "id", target_peer))
+            await event.edit(f"🚨 **Report submit ho gayi!**\n• **Target:** `{target_display}`\n• **Reason:** `{reason_key}`")
+        except FloodWaitError as f:
+            await event.edit(f"⏳ **FloodWait:** `{f.seconds}s` baad try karein.")
+        except Exception as e:
+            await event.edit(f"❌ **Report fail:** `{e}`")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.(spamreport|scamreport|fakereport)(?:\s+([\s\S]+))?$', outgoing=True))
+    async def quick_reason_report_cmd(event):
+        cmd_name = event.pattern_match.group(1)
+        reason_map = {
+            "spamreport": "spam",
+            "scamreport": "scam",
+            "fakereport": "fake",
+        }
+        reason_key = reason_map[cmd_name]
+        extra_note = (event.pattern_match.group(2) or "").strip()
+
+        chat_id, reply_msg, target_peer, note_text = await _resolve_report_target(event, extra_note)
+        if not target_peer:
+            await event.edit(f"ℹ️ **Istemaal:** Reply karein ya `.{cmd_name} @username [note]` likhein.")
+            return
+
+        try:
+            chat_ent = await ubot.get_entity(chat_id) if chat_id is not None else None
+            await _submit_single_report(chat_ent, reply_msg, target_peer, reason_key, note_text)
+            uname = getattr(target_peer, "username", None)
+            label = f"@{uname}" if uname else str(getattr(target_peer, "id", target_peer))
+            await event.edit(f"🚨 **`{reason_key.upper()}` report bhej di gayi:** `{label}`")
+        except FloodWaitError as f:
+            await event.edit(f"⏳ **FloodWait:** `{f.seconds}s` baad try karein.")
+        except Exception as e:
+            await event.edit(f"❌ **Report fail:** `{e}`")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.chatreport(?:\s+([\s\S]+))?$', outgoing=True))
+    async def chat_report_cmd(event):
+        raw_arg = (event.pattern_match.group(1) or "").strip()
+        parts = raw_arg.split(maxsplit=1)
+        reason_key = "other"
+        note_text = ""
+
+        if parts and parts[0].lower() in REPORT_REASON_MAP:
+            reason_key = parts[0].lower()
+            note_text = parts[1].strip() if len(parts) > 1 else ""
+        elif raw_arg:
+            note_text = raw_arg
+
+        try:
+            chat_ent = await ubot.get_entity(event.chat_id)
+            input_peer = await ubot.get_input_entity(chat_ent)
+            await ubot(ReportPeerRequest(
+                peer=input_peer,
+                reason=REPORT_REASON_MAP.get(reason_key, InputReportReasonOther()),
+                message=note_text or f"Chat reported via {BOT_BRAND}",
+            ))
+            title = getattr(chat_ent, "title", getattr(chat_ent, "first_name", str(event.chat_id)))
+            await event.edit(f"🚨 **Chat report submit ho gayi:** `{title}` (`{reason_key}`)")
+        except FloodWaitError as f:
+            await event.edit(f"⏳ **FloodWait:** `{f.seconds}s` baad try karein.")
+        except Exception as e:
+            await event.edit(f"❌ **Chat report fail:** `{e}`")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.massreport(?:\s+([\s\S]+))?$', outgoing=True))
+    async def mass_report_cmd(event):
+        raw_arg = (event.pattern_match.group(1) or "").strip()
+        parts = raw_arg.split()
+        count = 3
+        rem_tokens = parts
+
+        if parts and parts[0].isdigit():
+            count = max(1, min(int(parts[0]), 10))
+            rem_tokens = parts[1:]
+
+        joined_rem = " ".join(rem_tokens).strip()
+        chat_id, reply_msg, target_peer, rest_after_target = await _resolve_report_target(event, joined_rem)
+        if not target_peer:
+            await event.edit("ℹ️ **Istemaal:** Reply karein ya `.massreport [1-10] [@username] [reason] [note]` likhein.")
+            return
+
+        rest_parts = rest_after_target.split(maxsplit=1)
+        reason_key = "other"
+        note_text = ""
+        if rest_parts and rest_parts[0].lower() in REPORT_REASON_MAP:
+            reason_key = rest_parts[0].lower()
+            note_text = rest_parts[1].strip() if len(rest_parts) > 1 else ""
+        else:
+            note_text = rest_after_target
+
+        status_msg = await event.edit(f"🚨 **Mass report shuru (`{count}`x, reason: `{reason_key}`)...**")
+        sent_ok = 0
+        chat_ent = await ubot.get_entity(chat_id) if chat_id is not None else None
+
+        for _ in range(count):
+            try:
+                await _submit_single_report(chat_ent, reply_msg, target_peer, reason_key, note_text)
+                sent_ok += 1
+                await asyncio.sleep(1.0)
+            except FloodWaitError as f:
+                await asyncio.sleep(f.seconds + 0.5)
+                break
+            except Exception:
+                break
+
+        await status_msg.edit(f"✅ **Mass report complete:** `{sent_ok}/{count}` (`{reason_key}`)")
 
     # WELCOME FEATURE: SET WELCOME WITH PIC & TEXT
     @ubot.on(events.NewMessage(outgoing=True, pattern=r'^\/welcome'))
