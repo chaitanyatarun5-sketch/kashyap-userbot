@@ -130,6 +130,13 @@ VOICES_MENU_TEXT = (
     "```"
 )
 
+TTS_USAGE_TEXT = (
+    "```yaml\n"
+    "🎙️ K A S H Y A P • V O I C E S\n\n"
+    "Use: .tts villain [text] (List: .voices)\n"
+    "```"
+)
+
 
 async def synthesize_voice_file(text: str, preset_name: str = "boy") -> str:
     preset = TTS_VOICE_PRESETS.get(preset_name.lower(), TTS_VOICE_PRESETS["boy"])
@@ -2388,12 +2395,7 @@ async def start_userbot_session(session_string, owner_id):
             spoken_text = (rep.raw_text or "").strip() if rep else ""
 
         if not spoken_text:
-            await event.edit(
-                "```yaml\n"
-                "🎙️ K A S H Y A P • V O I C E S\n\n"
-                "Use: .tts villain [text] (List: .voices)\n"
-                "```"
-            )
+            await event.edit(TTS_USAGE_TEXT)
             return
 
         tmp_path = None
