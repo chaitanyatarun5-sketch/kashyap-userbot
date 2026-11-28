@@ -45,6 +45,15 @@ except ImportError:
     os.system(f"{sys.executable} -m pip install gTTS")
     from gtts import gTTS
 
+try:
+    import edge_tts
+except ImportError:
+    os.system(f"{sys.executable} -m pip install edge-tts")
+    try:
+        import edge_tts
+    except Exception:
+        edge_tts = None
+
 from telethon import TelegramClient, events, Button
 from telethon.sessions import StringSession
 from telethon.errors import SessionPasswordNeededError, FloodWaitError, UserNotParticipantError
@@ -84,6 +93,69 @@ def format_uptime():
     hours, sec = divmod(sec, 3600)
     mins, secs = divmod(sec, 60)
     return f"{days}d {hours:02d}:{mins:02d}:{secs:02d}"
+
+
+# MULTI-VOICE PRESETS (.voices & .tts <voice> [text])
+TTS_VOICE_PRESETS = {
+    "girl":     {"voice": "hi-IN-SwaraNeural",   "rate": "+0%",   "pitch": "+6Hz",   "label": "Sweet Indian Girl 👧"},
+    "boy":      {"voice": "hi-IN-MadhurNeural",  "rate": "+0%",   "pitch": "+0Hz",   "label": "Natural Indian Boy 👦"},
+    "cute":     {"voice": "hi-IN-SwaraNeural",   "rate": "+12%",  "pitch": "+28Hz",  "label": "Cute Anime Girl 🌸"},
+    "chipmunk": {"voice": "hi-IN-SwaraNeural",   "rate": "+35%",  "pitch": "+55Hz",  "label": "Funny Chipmunk 🐿️"},
+    "villain":  {"voice": "hi-IN-MadhurNeural",  "rate": "-12%",  "pitch": "-28Hz",  "label": "Deep Villain Boss 😈"},
+    "demon":    {"voice": "hi-IN-MadhurNeural",  "rate": "-22%",  "pitch": "-45Hz",  "label": "Scary Monster 💀"},
+    "deep":     {"voice": "en-IN-PrabhatNeural", "rate": "-10%",  "pitch": "-25Hz",  "label": "Heavy Deep Baritone 🗿"},
+    "robot":    {"voice": "en-IN-PrabhatNeural", "rate": "+5%",   "pitch": "-15Hz",  "label": "Cyborg Robot 🤖"},
+    "ghost":    {"voice": "hi-IN-SwaraNeural",   "rate": "-25%",  "pitch": "-18Hz",  "label": "Haunted Ghost Echo 👻"},
+    "fast":     {"voice": "hi-IN-MadhurNeural",  "rate": "+45%",  "pitch": "+5Hz",   "label": "Fast Rapper ⚡"},
+    "slow":     {"voice": "hi-IN-MadhurNeural",  "rate": "-30%",  "pitch": "-8Hz",   "label": "Slow Dramatic 🌙"},
+    "eng_boy":  {"voice": "en-IN-PrabhatNeural", "rate": "+0%",   "pitch": "+0Hz",   "label": "Indian English Boy 🧑"},
+}
+
+VOICES_MENU_TEXT = (
+    "```yaml\n"
+    "🎙️ K A S H Y A P • V O I C E S\n\n"
+    "girl     : Sweet Indian Girl 👧\n"
+    "boy      : Natural Indian Boy 👦\n"
+    "cute     : Cute Anime Girl 🌸\n"
+    "chipmunk : Funny Chipmunk 🐿️\n"
+    "villain  : Deep Villain Boss 😈\n"
+    "demon    : Scary Monster 💀\n"
+    "deep     : Heavy Deep Baritone 🗿\n"
+    "robot    : Cyborg Robot 🤖\n"
+    "ghost    : Haunted Ghost Echo 👻\n"
+    "fast     : Fast Rapper ⚡\n"
+    "slow     : Slow Dramatic 🌙\n"
+    "eng_boy  : Indian English Boy 🧑\n\n"
+    "Use: .tts villain [text]\n"
+    "```"
+)
+
+
+async def synthesize_voice_file(text: str, preset_name: str = "boy") -> str:
+    preset = TTS_VOICE_PRESETS.get(preset_name.lower(), TTS_VOICE_PRESETS["boy"])
+    tmp_f = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+    tmp_f.close()
+    out_path = tmp_f.name
+
+    if edge_tts is not None:
+        try:
+            comm = edge_tts.Communicate(
+                text=text,
+                voice=preset["voice"],
+                rate=preset["rate"],
+                pitch=preset["pitch"],
+            )
+            await comm.save(out_path)
+            if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
+                return out_path
+        except Exception:
+            pass
+
+    lang_code = "en" if preset_name.lower() in ("deep", "robot", "eng_boy") else "hi"
+    slow_flag = preset_name.lower() in ("slow", "ghost", "demon")
+    tts = gTTS(text=text, lang=lang_code, slow=slow_flag)
+    tts.save(out_path)
+    return out_path
 
 
 # STATIC COMMANDS MENU (FIXED LAYOUT — ALL COMMANDS INCLUDED)
@@ -128,12 +200,13 @@ STATIC_COMMANDS_TEXT = (
     "  `.say30 [text]` • `.stop30`\n"
     "  `.ar [emoji]` • `.dar` • `.uar` • `.duar` • `.rar [emojis...]` • `.drar`\n"
     "  `.stop` • `.stopall` • `.clear` • `.wipe` • `.restart` • `.help`\n\n"
-    "▸ **FUN, TEXT & EXTRA UTILITY**\n"
+    "▸ **FUN, VOICE TTS & EXTRA UTILITY**\n"
+    "  `.voices` • `.tts [voice] [text]` • `.ttsraid [5-6] [text]`\n"
     "  `.roast` • `.iq` • `.love` • `.toss` • `.dice` • `.coin` • `.rate [topic]`\n"
     "  `.calc [expr]` • `.calc2 [expr]` • `.mock [text]` • `.mock2 [text]`\n"
     "  `.reverse [text]` • `.clap [text]` • `.vapor [text]`\n"
     "  `.trim [text]` • `.caps [text]` • `.lower [text]` • `.title [text]`\n"
-    "  `.ship` • `.slap` • `.hug` • `.8ball [question]` • `.fact` • `.shayari` • `.tts [text]`\n"
+    "  `.ship` • `.slap` • `.hug` • `.8ball [question]` • `.fact` • `.shayari`\n"
     "  `.steal` • `.caption <text>` • `.ghost [sec] [text]` • `.tginfo`\n"
     "  `.bio <text>` • `.name <first> | <last>`\n"
     "  `.ping` • `.ping2` • `.uptime` • `.alive` • `.alive2` • `.id` • `.id2`\n"
@@ -155,7 +228,8 @@ AURA_COMMAND_TEXT = (
     "  • `.mixraid [1-300]` • `.tagraid [1-300]` • `.capsraid [1-300]` • `.slowraid [1-300]`\n"
     "  • `.badaid [1-300]` • `.saraid2 [1-300]` • `.ultraid [1-300]`\n"
     "  • `.ssraid [1-300]` • `.extraraid [1-300]`\n"
-    "  • `.ttsraid [5-6] [text]` (5-6 voice notes via gTTS)\n\n"
+    "  • `.tts [voice] [text]` • `.voices` (12 AI voices)\n"
+    "  • `.ttsraid [5-6] [text]` (5-6 voice notes)\n\n"
     "💬 **AURA DM & CONTROL**\n"
     "  • Har 19th incoming DM par: `wolcome to my dm kaise ho`\n"
     "  • `.rraid` / `.drraid` • `.echo` / `.decho` • `.chup` / `.bol`\n"
@@ -166,8 +240,9 @@ AURA_COMMAND_TEXT = (
 EXTRA_PANEL_TEXT = (
     "┏━「 ✦ **EXTRA MENU** ✦ 」━┓\n"
     "┃ • `.auracommand` — Aura Command Pack\n"
-    "┃ • `.ttsraid [5-6] [text]` — gTTS Voice Notes (5-6)\n"
-    "┃ • `.tts [text]` — Text TTS\n"
+    "┃ • `.voices` — 12 Voice Presets List\n"
+    "┃ • `.tts [voice] [text]` — Multi-Voice Note\n"
+    "┃ • `.ttsraid [5-6] [text]` — 5-6 Voice Notes\n"
     "┗━━━━━━━━━━━━━━━━━━━━━━━━━┛"
 )
 
@@ -228,7 +303,7 @@ CATEGORY_TEXTS = {
         "┃ • `.mixraid` • `.capsraid` • `.slowraid`\n"
         "┃ • `.badaid` • `.saraid2` • `.ultraid`\n"
         "┃ • `.ssraid` • `.extraraid`\n"
-        "┃ • `.ttsraid [5-6] [text]` — 5-6 voice notes (gTTS)\n"
+        "┃ • `.tts [voice] [text]` • `.voices` • `.ttsraid [5-6] [text]`\n"
         "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
     ),
     "oneword": (
@@ -762,9 +837,9 @@ async def category_button_cb(event):
     key = event.pattern_match.group(1).decode("utf-8") if isinstance(event.pattern_match.group(1), bytes) else event.pattern_match.group(1)
     back_btn = [[Button.inline("« BACK TO MENU", b"back_deck")]]
     if key == "extra":
-        await event.answer("EXTRA • AURACOMMAND & TTS", alert=False)
+        await event.answer("EXTRA • AURACOMMAND & VOICES", alert=False)
         extra_btns = [
-            [Button.inline("✨ .AURACOMMAND", b"show_aura"), Button.inline("🔊 TTS (.TTSRAID)", b"show_tts")],
+            [Button.inline("✨ .AURACOMMAND", b"show_aura"), Button.inline("🎙️ .VOICES / .TTS", b"show_tts")],
             [Button.inline("« BACK TO MENU", b"back_deck")]
         ]
         await event.edit(EXTRA_PANEL_TEXT, buttons=extra_btns)
@@ -783,14 +858,8 @@ async def show_aura_cb(event):
 
 @bot.on(events.CallbackQuery(data=b'show_tts'))
 async def show_tts_cb(event):
-    await event.answer("TTS & Voice Note Pack", alert=False)
-    tts_txt = (
-        "┏━「 🔊 **TTS & VOICE NOTE COMMANDS** 」━┓\n"
-        "┃ • `.ttsraid [5-6] [text]` — gTTS se 5-6 voice notes\n"
-        "┃ • `.tts [text]` — Text TTS\n"
-        "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
-    )
-    await event.edit(tts_txt, buttons=[[Button.inline("« BACK TO EXTRA", b"cat_extra")]])
+    await event.answer("Voices & TTS Guide", alert=False)
+    await event.edit(VOICES_MENU_TEXT, buttons=[[Button.inline("« BACK TO EXTRA", b"cat_extra")]])
 
 
 @bot.on(events.CallbackQuery(data=b'back_deck'))
@@ -994,7 +1063,7 @@ async def start_userbot_session(session_string, owner_id):
             if open_extra:
                 txt = EXTRA_PANEL_TEXT
                 btns = [
-                    [Button.inline("✨ .AURACOMMAND", b"show_aura"), Button.inline("🔊 TTS (.TTSRAID)", b"show_tts")],
+                    [Button.inline("✨ .AURACOMMAND", b"show_aura"), Button.inline("🎙️ .VOICES / .TTS", b"show_tts")],
                     [Button.inline("« BACK TO MENU", b"back_deck")]
                 ]
             else:
@@ -1448,11 +1517,7 @@ async def start_userbot_session(session_string, owner_id):
                     spoken = f"{spoken} number {i + 1}"
                 tmp_path = None
                 try:
-                    tmp_f = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
-                    tmp_f.close()
-                    tmp_path = tmp_f.name
-                    tts = gTTS(text=spoken, lang="hi", slow=False)
-                    tts.save(tmp_path)
+                    tmp_path = await synthesize_voice_file(spoken, preset_name="villain")
                     if reply_to:
                         await ubot.send_file(target_chat, tmp_path, voice_note=True, reply_to=reply_to)
                     else:
@@ -2300,7 +2365,58 @@ async def start_userbot_session(session_string, owner_id):
         if not sent_deck:
             await event.edit(STATIC_COMMANDS_TEXT)
 
-    # 12. FUN, TEXT & EXTRA UTILITIES
+    # 12. FUN, VOICE TTS (.voices & .tts <voice> [text]) & EXTRA UTILITIES
+    @ubot.on(events.NewMessage(pattern=r'^\.voices$', outgoing=True))
+    async def voices_list_cmd(event):
+        await event.edit(VOICES_MENU_TEXT)
+
+    @ubot.on(events.NewMessage(pattern=r'^\.tts\b', outgoing=True))
+    async def multi_voice_tts_cmd(event):
+        parts = event.raw_text.split(maxsplit=2)
+        preset_name = "boy"
+        spoken_text = ""
+
+        if len(parts) >= 2 and parts[1].lower() in TTS_VOICE_PRESETS:
+            preset_name = parts[1].lower()
+            if len(parts) >= 3:
+                spoken_text = parts[2].strip()
+        elif len(parts) >= 2:
+            spoken_text = " ".join(parts[1:]).strip()
+
+        if not spoken_text and event.is_reply:
+            rep = await event.get_reply_message()
+            spoken_text = (rep.raw_text or "").strip() if rep else ""
+
+        if not spoken_text:
+            await event.edit(
+                "```yaml\n"
+                "🎙️ K A S H Y A P • V O I C E S\n\n"
+                "Use: .tts villain [text] (List: .voices)\n"
+                "```"
+            )
+            return
+
+        tmp_path = None
+        try:
+            tmp_path = await synthesize_voice_file(spoken_text, preset_name=preset_name)
+            reply_to = event.reply_to_msg_id if event.is_reply else None
+            if reply_to:
+                await ubot.send_file(event.chat_id, tmp_path, voice_note=True, reply_to=reply_to)
+            else:
+                await ubot.send_file(event.chat_id, tmp_path, voice_note=True)
+            try:
+                await event.delete()
+            except Exception:
+                pass
+        except Exception as e:
+            await event.edit(f"❌ **TTS Voice fail:** `{e}`")
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except Exception:
+                    pass
+
     @ubot.on(events.NewMessage(pattern=r'^\.roast$', outgoing=True))
     async def roast_cmd(event):
         txt = random.choice(ROAST_LINES)
@@ -2391,7 +2507,7 @@ async def start_userbot_session(session_string, owner_id):
         else:
             await event.edit("🤗 **Warm hug sent!**")
 
-    @ubot.on(events.NewMessage(pattern=r'^\.(8ball|fact|shayari|tts)\b', outgoing=True))
+    @ubot.on(events.NewMessage(pattern=r'^\.(8ball|fact|shayari)\b', outgoing=True))
     async def info_fun_cmd(event):
         cmd = event.pattern_match.group(1)
         if cmd == "8ball":
@@ -2399,12 +2515,8 @@ async def start_userbot_session(session_string, owner_id):
             await event.edit(f"🎱 **8Ball:** {ans}")
         elif cmd == "fact":
             await event.edit("💡 **Fact:** Telegram MTProto fast encrypted messaging aur bots/userbots dono support karta hai.")
-        elif cmd == "shayari":
-            await event.edit("✨ **Shayari:**\n*Waqt aur samundar ki lehrein kisi ka intezar nahi kartin,* \n*Apni pehchan khud banani padti hai.*")
         else:
-            parts = event.raw_text.split(maxsplit=1)
-            txt = parts[1] if len(parts) > 1 else "Hello!"
-            await event.edit(f"🔊 **TTS Text:** `{txt}`")
+            await event.edit("✨ **Shayari:**\n*Waqt aur samundar ki lehrein kisi ka intezar nahi kartin,* \n*Apni pehchan khud banani padti hai.*")
 
     @ubot.on(events.NewMessage(pattern=r'^\.steal$', outgoing=True))
     async def steal_media_cmd(event):
