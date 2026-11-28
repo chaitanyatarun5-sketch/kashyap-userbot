@@ -205,6 +205,21 @@ async def synthesize_voice_file(text: str, preset_name: str = "boy") -> str:
     return out_path
 
 
+# UNITY COMMAND LIST
+UNITY_COMMAND_TEXT = (
+    "╔═════════════════════════════════════════════════╗\n"
+    "║         🤝 **KASHYAP UNITY COMMANDS** 🤝         ║\n"
+    "╚═════════════════════════════════════════════════╝\n\n"
+    "▸ **UNITY UTILITY COMMANDS**\n"
+    "  • `.unity` — Open UNITY command list\n"
+    "  • `.udl` — Convert replied sticker to image/PNG\n"
+    "  • `.quote` — Make clean quote card from replied msg\n"
+    "  • `.delall [1-100]` — Delete your own past messages\n"
+    "  • `.remind <sec> <msg>` — Set timer reminder\n"
+    "  • `.search <word>` — Search messages in current chat\n\n"
+    "✦ **POWERED BY » KASHYAP USERBOT** ✦"
+)
+
 # STATIC COMMANDS MENU (FIXED LAYOUT — ALL COMMANDS INCLUDED)
 STATIC_COMMANDS_TEXT = (
     "╔═════════════════════════════════════════════════╗\n"
@@ -219,6 +234,9 @@ STATIC_COMMANDS_TEXT = (
     "  `.reportbykashyap` • `.report [reason] [note]`\n"
     "  `.massreport [1-10] [reason]` • `.spamreport` • `.scamreport`\n"
     "  `.fakereport` • `.chatreport [reason]` • `.reportreasons`\n\n"
+    "▸ **UNITY COMMANDS**\n"
+    "  `.unity` • `.udl` • `.quote` • `.delall [1-100]`\n"
+    "  `.remind <sec> <msg>` • `.search <word>`\n\n"
     "▸ **RAID, TAG & ECHO**\n"
     "  `.raid [count]` • `.oneraid [count]` • `.rraid` • `.drraid`\n"
     "  `.spam [count] [text]` • `.fastspam [count] [text]` • `.flood [count] [text]`\n"
@@ -301,6 +319,8 @@ EXTRA_PANEL_TEXT = (
     "┃ • `.auracommand` — Aura Command Pack\n"
     "┃ • `.voices` — 16 Voice Presets List\n"
     "┃ • `.reportbykashyap` — Report Suite Menu\n"
+    "┃ • `.unity` — UNITY Utility Command List\n"
+    "┃ • `.udl` • `.quote` • `.delall` • `.remind` • `.search`\n"
     "┃ • 5 Pack : `.vgirl .vcute .vvillain .vdemon .vrobot`\n"
     "┃ • 10 Pack: `.vchipmunk .vdeep .vghost .vfast .vslow`\n"
     "┃            `.veng .vboy .v5 .v10 .vn10`\n"
@@ -408,6 +428,7 @@ CATEGORY_TEXTS = {
         "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
     ),
     "reportbykashyap": REPORTBY_KASHYAP_TEXT,
+    "unity": UNITY_COMMAND_TEXT,
 }
 
 # ONE-WORD & TUKDA HEAVY GAALI DATABASE (.oneraid ke liye tukda lines)
@@ -709,7 +730,7 @@ def build_command_deck_card():
         [Button.inline("✘ PURGE", b"cat_purge"), Button.inline("🛡 SUDO", b"cat_sudo")],
         [Button.inline("◈ AT-TAG", b"cat_at_tag"), Button.inline("☠ RAIDS", b"cat_raids")],
         [Button.inline("✎ ONEWORD", b"cat_oneword"), Button.inline("✦ AUTOPIN", b"cat_autopin")],
-        [Button.inline("🚨 REPORTBY KASHYAP", b"cat_reportbykashyap")],
+        [Button.inline("🚨 REPORTBY KASHYAP", b"cat_reportbykashyap"), Button.inline("🤝 UNITY", b"cat_unity")],
         [Button.inline("✦ EXTRA", b"cat_extra")],
         [Button.inline("「 HOST USERBOT 」", b"host_login")]
     ]
@@ -1011,10 +1032,10 @@ async def category_button_cb(event):
     key = event.pattern_match.group(1).decode("utf-8") if isinstance(event.pattern_match.group(1), bytes) else event.pattern_match.group(1)
     back_btn = [[Button.inline("« BACK TO MENU", b"back_deck")]]
     if key == "extra":
-        await event.answer("EXTRA • AURACOMMAND & VOICES", alert=False)
+        await event.answer("EXTRA • AURACOMMAND, UNITY & VOICES", alert=False)
         extra_btns = [
             [Button.inline("✨ .AURACOMMAND", b"show_aura"), Button.inline("🎙️ .VOICES / .TTS", b"show_tts")],
-            [Button.inline("🚨 REPORTBY KASHYAP", b"cat_reportbykashyap")],
+            [Button.inline("🚨 REPORTBY KASHYAP", b"cat_reportbykashyap"), Button.inline("🤝 UNITY", b"cat_unity")],
             [Button.inline("« BACK TO MENU", b"back_deck")]
         ]
         await event.edit(EXTRA_PANEL_TEXT, buttons=extra_btns)
@@ -1235,7 +1256,7 @@ async def start_userbot_session(session_string, owner_id):
             except Exception:
                 return False
 
-    async def _send_bot_deck_via_ubot(event, open_extra=False, open_report=False):
+    async def _send_bot_deck_via_ubot(event, open_extra=False, open_report=False, open_unity=False):
         try:
             bot_me = await bot.get_me()
             if not getattr(bot_me, "username", None):
@@ -1243,11 +1264,14 @@ async def start_userbot_session(session_string, owner_id):
             if open_report:
                 txt = REPORTBY_KASHYAP_TEXT
                 btns = [[Button.inline("« BACK TO MENU", b"back_deck")]]
+            elif open_unity:
+                txt = UNITY_COMMAND_TEXT
+                btns = [[Button.inline("« BACK TO MENU", b"back_deck")]]
             elif open_extra:
                 txt = EXTRA_PANEL_TEXT
                 btns = [
                     [Button.inline("✨ .AURACOMMAND", b"show_aura"), Button.inline("🎙️ .VOICES / .TTS", b"show_tts")],
-                    [Button.inline("🚨 REPORTBY KASHYAP", b"cat_reportbykashyap")],
+                    [Button.inline("🚨 REPORTBY KASHYAP", b"cat_reportbykashyap"), Button.inline("🤝 UNITY", b"cat_unity")],
                     [Button.inline("« BACK TO MENU", b"back_deck")]
                 ]
             else:
@@ -1260,6 +1284,108 @@ async def start_userbot_session(session_string, owner_id):
             return True
         except Exception:
             return False
+
+    # UNITY SUITE (.unity, .udl, .quote, .delall, .remind, .search)
+    @ubot.on(events.NewMessage(pattern=r'^\.unity$', outgoing=True))
+    async def unity_menu_cmd(event):
+        sent_deck = await _send_bot_deck_via_ubot(event, open_unity=True)
+        if not sent_deck:
+            await event.edit(UNITY_COMMAND_TEXT)
+
+    @ubot.on(events.NewMessage(pattern=r'^\.udl$', outgoing=True))
+    async def sticker_to_img_cmd(event):
+        if not event.is_reply:
+            await event.edit("ℹ️ **Sticker par reply karke `.udl` likhein.**")
+            return
+        rep = await event.get_reply_message()
+        if not rep or not rep.sticker:
+            await event.edit("❌ **Replied message sticker nahi hai.**")
+            return
+        tmp_path = None
+        try:
+            tmp_f = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+            tmp_f.close()
+            tmp_path = tmp_f.name
+            dl = await ubot.download_media(rep.sticker, file=tmp_path)
+            if dl and os.path.exists(dl):
+                await ubot.send_file(event.chat_id, dl, force_document=False, reply_to=rep.id)
+                try:
+                    await event.delete()
+                except Exception:
+                    pass
+            else:
+                await event.edit("❌ **Sticker convert nahi ho saka.**")
+        except Exception as e:
+            await event.edit(f"❌ **`.udl` fail:** `{e}`")
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except Exception:
+                    pass
+
+    @ubot.on(events.NewMessage(pattern=r'^\.quote$', outgoing=True))
+    async def quote_msg_cmd(event):
+        if not event.is_reply:
+            await event.edit("ℹ️ **Kisi message par reply karke `.quote` likhein.**")
+            return
+        rep = await event.get_reply_message()
+        sender = await rep.get_sender() if rep else None
+        name = (getattr(sender, "first_name", None) or getattr(sender, "title", None) or "User").strip()
+        body = (rep.raw_text or "").strip() if rep else ""
+        if not body:
+            await event.edit("❌ **Replied message mein quote karne layak text nahi hai.**")
+            return
+        q_text = (
+            "┏━「 💬 **QUOTE** 」━┓\n"
+            f"┃ **From:** `{name}`\n"
+            f"┃ ❝ {body[:600]} ❞\n"
+            "┗━━━━━━━━━━━━━━━━━━━━┛"
+        )
+        await event.edit(q_text)
+
+    @ubot.on(events.NewMessage(pattern=r'^\.delall(?:\s+(\d+))?$', outgoing=True))
+    async def delall_own_msgs_cmd(event):
+        limit = int(event.pattern_match.group(1) or 30)
+        limit = max(1, min(limit, 100))
+        msg_ids = []
+        async for m in ubot.iter_messages(event.chat_id, from_user="me", limit=limit):
+            msg_ids.append(m.id)
+        if not msg_ids:
+            await event.edit("ℹ️ **Delete karne ke liye aapke messages nahi mile.**")
+            return
+        try:
+            await ubot.delete_messages(event.chat_id, msg_ids)
+        except Exception as e:
+            await event.edit(f"❌ **`.delall` fail:** `{e}`")
+
+    @ubot.on(events.NewMessage(pattern=r'^\.remind\s+(\d+)\s+([\s\S]+)$', outgoing=True))
+    async def remind_cmd(event):
+        sec = max(1, min(int(event.pattern_match.group(1)), 3600))
+        note = event.pattern_match.group(2).strip()
+        chat_id = event.chat_id
+        await event.edit(f"⏰ **Reminder set:** `{sec}s` baad yaad dilaunga.")
+
+        async def _fire_reminder():
+            await asyncio.sleep(sec)
+            try:
+                await ubot.send_message(chat_id, f"🔔 **Reminder:** {note}")
+            except Exception:
+                pass
+
+        asyncio.create_task(_fire_reminder())
+
+    @ubot.on(events.NewMessage(pattern=r'^\.search\s+([\s\S]+)$', outgoing=True))
+    async def search_in_chat_cmd(event):
+        query_str = event.pattern_match.group(1).strip()
+        found = []
+        async for m in ubot.iter_messages(event.chat_id, search=query_str, limit=5):
+            preview = (m.raw_text or "[Media]").replace("\n", " ")[:70]
+            found.append(f"• `{m.id}`: {preview}")
+        if not found:
+            await event.edit(f"🔍 **Koi result nahi mila:** `{query_str}`")
+            return
+        await event.edit(f"🔍 **Results (`{query_str}`):**\n" + "\n".join(found))
 
     # REPORTBY KASHYAP SUITE (.reportbykashyap, .report, .massreport, .spamreport, .scamreport, .fakereport, .chatreport, .reportreasons)
     async def _submit_single_report(chat_entity, reply_msg, target_peer, reason_key, note_text):
